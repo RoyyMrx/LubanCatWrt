@@ -1,0 +1,50 @@
+# these configs are here to disable the packages that we don't want to compile during dev builds. 
+# a developer can for example use scripts/morse_setup.sh -x light -b ekh01v2 
+
+
+#these are to remove wireshark packages.
+CONFIG_PACKAGE_wireshark=n
+CONFIG_PACKAGE_libgcrypt=n
+CONFIG_PACKAGE_glib2=n
+CONFIG_PACKAGE_libpcap=n
+CONFIG_PACKAGE_libxml2=n
+CONFIG_PACKAGE_libgnutls=n
+CONFIG_PACKAGE_libcap=n
+CONFIG_PACKAGE_libcares=n
+
+#these are to remove video packages.
+CONFIG_BUILD_PATENTED=n
+CONFIG_FFMPEG_CUSTOM_DECODER_h264=n
+CONFIG_FFMPEG_CUSTOM_DEMUXER_h264=n
+CONFIG_FFMPEG_CUSTOM_GPL=n
+CONFIG_FFMPEG_CUSTOM_MUXER_h264=n
+CONFIG_FFMPEG_CUSTOM_NONFREE=n
+CONFIG_FFMPEG_CUSTOM_PATENTED=n
+CONFIG_FFMPEG_CUSTOM_PROGRAMS=n
+CONFIG_FFMPEG_CUSTOM_SELECT_libx264=n
+CONFIG_GNUTLS_ALPN=n
+CONFIG_GNUTLS_ANON=n
+CONFIG_GNUTLS_DTLS_SRTP=n
+CONFIG_GNUTLS_HEARTBEAT=n
+CONFIG_GNUTLS_OCSP=n
+CONFIG_GNUTLS_PSK=n
+CONFIG_PACKAGE_alsa-lib=n
+CONFIG_PACKAGE_ffmpeg-custom=n
+CONFIG_PACKAGE_ffprobe-custom=n
+CONFIG_PACKAGE_kmod-camera-bcm2835=n
+CONFIG_PACKAGE_kmod-dma-buf=n
+CONFIG_PACKAGE_kmod-vc-sm-cma=n
+CONFIG_PACKAGE_kmod-vchiq-mmal-bcm2835=n
+CONFIG_PACKAGE_kmod-video-core=n
+CONFIG_PACKAGE_kmod-video-videobuf2=n
+CONFIG_PACKAGE_lame-lib=n
+CONFIG_PACKAGE_libatomic=n
+CONFIG_PACKAGE_libffmpeg-custom=n
+CONFIG_PACKAGE_libgmp=n
+CONFIG_PACKAGE_libgnutls=n
+CONFIG_PACKAGE_libnettle=n
+CONFIG_PACKAGE_libv4l=n
+CONFIG_PACKAGE_libx264=n
+CONFIG_PACKAGE_luci-app-camera=n
+CONFIG_PACKAGE_v4l-utils=n
+CONFIG_PACKAGE_v4l2rtspserver=n
