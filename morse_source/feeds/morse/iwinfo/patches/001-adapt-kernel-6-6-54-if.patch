@@ -1,0 +1,1829 @@
+diff -uNr a/api/nl80211.h b/api/nl80211.h
+--- a/api/nl80211.h	2023-05-10 18:46:05.000000000 +0800
++++ b/api/nl80211.h	2024-10-14 11:03:11.000000000 +0800
+@@ -1440,6 +1440,21 @@
+ 	NL80211_CMD_COLOR_CHANGE_ABORTED,
+ 	NL80211_CMD_COLOR_CHANGE_COMPLETED,
+ 
++	NL80211_CMD_SET_FILS_AAD,
++
++	NL80211_CMD_ASSOC_COMEBACK,
++
++	NL80211_CMD_ADD_LINK,
++	NL80211_CMD_REMOVE_LINK,
++
++	NL80211_CMD_ADD_LINK_STA,
++	NL80211_CMD_MODIFY_LINK_STA,
++	NL80211_CMD_REMOVE_LINK_STA,
++
++	NL80211_CMD_SET_HW_TIMESTAMP,
++
++	NL80211_CMD_LINKS_REMOVED,
++
+ 	/* add new commands above here */
+ 
+ 	/* used to define NL80211_CMD_MAX below */
+@@ -3096,6 +3111,41 @@
+ 	NL80211_ATTR_COLOR_CHANGE_COLOR,
+ 	NL80211_ATTR_COLOR_CHANGE_ELEMS,
+ 
++	NL80211_ATTR_MBSSID_CONFIG,
++	NL80211_ATTR_MBSSID_ELEMS,
++
++	NL80211_ATTR_RADAR_BACKGROUND,
++
++	NL80211_ATTR_AP_SETTINGS_FLAGS,
++
++	NL80211_ATTR_EHT_CAPABILITY,
++
++	NL80211_ATTR_DISABLE_EHT,
++
++	NL80211_ATTR_MLO_LINKS,
++	NL80211_ATTR_MLO_LINK_ID,
++	NL80211_ATTR_MLD_ADDR,
++
++	NL80211_ATTR_MLO_SUPPORT,
++
++	NL80211_ATTR_MAX_NUM_AKM_SUITES,
++
++	NL80211_ATTR_EML_CAPABILITY,
++	NL80211_ATTR_MLD_CAPA_AND_OPS,
++
++	NL80211_ATTR_TX_HW_TIMESTAMP,
++	NL80211_ATTR_RX_HW_TIMESTAMP,
++	NL80211_ATTR_TD_BITMAP,
++
++	NL80211_ATTR_PUNCT_BITMAP,
++
++	NL80211_ATTR_MAX_HW_TIMESTAMP_PEERS,
++	NL80211_ATTR_HW_TIMESTAMP_ENABLED,
++
++	NL80211_ATTR_EMA_RNR_ELEMS,
++
++	NL80211_ATTR_MLO_LINK_DISABLED,
++
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+ 	__NL80211_ATTR_AFTER_LAST,
+@@ -3150,7 +3200,14 @@
+ #define NL80211_HE_MIN_CAPABILITY_LEN           16
+ #define NL80211_HE_MAX_CAPABILITY_LEN           54
+ #define NL80211_MAX_NR_CIPHER_SUITES		5
++
++/*
++ * NL80211_MAX_NR_AKM_SUITES is obsolete when %NL80211_ATTR_MAX_NUM_AKM_SUITES
++ * present in %NL80211_CMD_GET_WIPHY response.
++ */
+ #define NL80211_MAX_NR_AKM_SUITES		2
++#define NL80211_EHT_MIN_CAPABILITY_LEN          13
++#define NL80211_EHT_MAX_CAPABILITY_LEN          51
+ 
+ #define NL80211_MIN_REMAIN_ON_CHANNEL_TIME	10
+ 
+@@ -3320,6 +3377,56 @@
+ };
+ 
+ /**
++ * enum nl80211_eht_gi - EHT guard interval
++ * @NL80211_RATE_INFO_EHT_GI_0_8: 0.8 usec
++ * @NL80211_RATE_INFO_EHT_GI_1_6: 1.6 usec
++ * @NL80211_RATE_INFO_EHT_GI_3_2: 3.2 usec
++ */
++enum nl80211_eht_gi {
++	NL80211_RATE_INFO_EHT_GI_0_8,
++	NL80211_RATE_INFO_EHT_GI_1_6,
++	NL80211_RATE_INFO_EHT_GI_3_2,
++};
++
++/**
++ * enum nl80211_eht_ru_alloc - EHT RU allocation values
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_26: 26-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_52: 52-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_52P26: 52+26-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_106: 106-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_106P26: 106+26 tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_242: 242-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_484: 484-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_484P242: 484+242 tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_996: 996-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_996P484: 996+484 tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_996P484P242: 996+484+242 tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_2x996: 2x996-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_2x996P484: 2x996+484 tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_3x996: 3x996-tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_3x996P484: 3x996+484 tone RU allocation
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC_4x996: 4x996-tone RU allocation
++ */
++enum nl80211_eht_ru_alloc {
++	NL80211_RATE_INFO_EHT_RU_ALLOC_26,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_52,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_52P26,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_106,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_106P26,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_242,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_484,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_484P242,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_996,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_996P484,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_996P484P242,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_2x996,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_2x996P484,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_3x996,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_3x996P484,
++	NL80211_RATE_INFO_EHT_RU_ALLOC_4x996,
++};
++
++/**
+  * enum nl80211_rate_info - bitrate information
+  *
+  * These attribute types are used with %NL80211_STA_INFO_TXRATE
+@@ -3358,6 +3465,20 @@
+  * @NL80211_RATE_INFO_HE_DCM: HE DCM value (u8, 0/1)
+  * @NL80211_RATE_INFO_RU_ALLOC: HE RU allocation, if not present then
+  *	non-OFDMA was used (u8, see &enum nl80211_he_ru_alloc)
++ * @NL80211_RATE_INFO_320_MHZ_WIDTH: 320 MHz bitrate
++ * @NL80211_RATE_INFO_EHT_MCS: EHT MCS index (u8, 0-15)
++ * @NL80211_RATE_INFO_EHT_NSS: EHT NSS value (u8, 1-8)
++ * @NL80211_RATE_INFO_EHT_GI: EHT guard interval identifier
++ *	(u8, see &enum nl80211_eht_gi)
++ * @NL80211_RATE_INFO_EHT_RU_ALLOC: EHT RU allocation, if not present then
++ *	non-OFDMA was used (u8, see &enum nl80211_eht_ru_alloc)
++ * @NL80211_RATE_INFO_S1G_MCS: S1G MCS index (u8, 0-10)
++ * @NL80211_RATE_INFO_S1G_NSS: S1G NSS value (u8, 1-4)
++ * @NL80211_RATE_INFO_1_MHZ_WIDTH: 1 MHz S1G rate
++ * @NL80211_RATE_INFO_2_MHZ_WIDTH: 2 MHz S1G rate
++ * @NL80211_RATE_INFO_4_MHZ_WIDTH: 4 MHz S1G rate
++ * @NL80211_RATE_INFO_8_MHZ_WIDTH: 8 MHz S1G rate
++ * @NL80211_RATE_INFO_16_MHZ_WIDTH: 16 MHz S1G rate
+  * @__NL80211_RATE_INFO_AFTER_LAST: internal use
+  */
+ enum nl80211_rate_info {
+@@ -3379,6 +3500,18 @@
+ 	NL80211_RATE_INFO_HE_GI,
+ 	NL80211_RATE_INFO_HE_DCM,
+ 	NL80211_RATE_INFO_HE_RU_ALLOC,
++	NL80211_RATE_INFO_320_MHZ_WIDTH,
++	NL80211_RATE_INFO_EHT_MCS,
++	NL80211_RATE_INFO_EHT_NSS,
++	NL80211_RATE_INFO_EHT_GI,
++	NL80211_RATE_INFO_EHT_RU_ALLOC,
++	NL80211_RATE_INFO_S1G_MCS,
++	NL80211_RATE_INFO_S1G_NSS,
++	NL80211_RATE_INFO_1_MHZ_WIDTH,
++	NL80211_RATE_INFO_2_MHZ_WIDTH,
++	NL80211_RATE_INFO_4_MHZ_WIDTH,
++	NL80211_RATE_INFO_8_MHZ_WIDTH,
++	NL80211_RATE_INFO_16_MHZ_WIDTH,
+ 
+ 	/* keep last */
+ 	__NL80211_RATE_INFO_AFTER_LAST,
+@@ -3689,13 +3822,20 @@
+  *     capabilities IE
+  * @NL80211_BAND_IFTYPE_ATTR_HE_CAP_PPE: HE PPE thresholds information as
+  *     defined in HE capabilities IE
+- * @NL80211_BAND_IFTYPE_ATTR_MAX: highest band HE capability attribute currently
+- *     defined
+  * @NL80211_BAND_IFTYPE_ATTR_HE_6GHZ_CAPA: HE 6GHz band capabilities (__le16),
+  *	given for all 6 GHz band channels
+  * @NL80211_BAND_IFTYPE_ATTR_VENDOR_ELEMS: vendor element capabilities that are
+  *	advertised on this band/for this iftype (binary)
++ * @NL80211_BAND_IFTYPE_ATTR_EHT_CAP_MAC: EHT MAC capabilities as in EHT
++ *	capabilities element
++ * @NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PHY: EHT PHY capabilities as in EHT
++ *	capabilities element
++ * @NL80211_BAND_IFTYPE_ATTR_EHT_CAP_MCS_SET: EHT supported NSS/MCS as in EHT
++ *	capabilities element
++ * @NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PPE: EHT PPE thresholds information as
++ *	defined in EHT capabilities element
+  * @__NL80211_BAND_IFTYPE_ATTR_AFTER_LAST: internal use
++ * @NL80211_BAND_IFTYPE_ATTR_MAX: highest band attribute currently defined
+  */
+ enum nl80211_band_iftype_attr {
+ 	__NL80211_BAND_IFTYPE_ATTR_INVALID,
+@@ -3707,7 +3847,10 @@
+ 	NL80211_BAND_IFTYPE_ATTR_HE_CAP_PPE,
+ 	NL80211_BAND_IFTYPE_ATTR_HE_6GHZ_CAPA,
+ 	NL80211_BAND_IFTYPE_ATTR_VENDOR_ELEMS,
+-
++	NL80211_BAND_IFTYPE_ATTR_EHT_CAP_MAC,
++	NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PHY,
++	NL80211_BAND_IFTYPE_ATTR_EHT_CAP_MCS_SET,
++	NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PPE,
+ 	/* keep last */
+ 	__NL80211_BAND_IFTYPE_ATTR_AFTER_LAST,
+ 	NL80211_BAND_IFTYPE_ATTR_MAX = __NL80211_BAND_IFTYPE_ATTR_AFTER_LAST - 1
+@@ -3736,6 +3879,10 @@
+  * @NL80211_BAND_ATTR_EDMG_BW_CONFIG: Channel BW Configuration subfield encodes
+  *	the allowed channel bandwidth configurations.
+  *	Defined by IEEE P802.11ay/D4.0 section 9.4.2.251, Table 13.
++ * @NL80211_BAND_ATTR_S1G_MCS_NSS_SET: S1G capabilities, supported S1G-MCS and NSS
++ *	set subfield, as in the S1G information IE, 5 bytes
++ * @NL80211_BAND_ATTR_S1G_CAPA: S1G capabilities information subfield as in the
++ *	S1G information IE, 10 bytes
+  * @NL80211_BAND_ATTR_MAX: highest band attribute currently defined
+  * @__NL80211_BAND_ATTR_AFTER_LAST: internal use
+  */
+@@ -3756,6 +3903,9 @@
+ 	NL80211_BAND_ATTR_EDMG_CHANNELS,
+ 	NL80211_BAND_ATTR_EDMG_BW_CONFIG,
+ 
++	NL80211_BAND_ATTR_S1G_MCS_NSS_SET,
++	NL80211_BAND_ATTR_S1G_CAPA,
++
+ 	/* keep last */
+ 	__NL80211_BAND_ATTR_AFTER_LAST,
+ 	NL80211_BAND_ATTR_MAX = __NL80211_BAND_ATTR_AFTER_LAST - 1
+@@ -3851,6 +4001,10 @@
+  *	on this channel in current regulatory domain.
+  * @NL80211_FREQUENCY_ATTR_16MHZ: 16 MHz operation is allowed
+  *	on this channel in current regulatory domain.
++  * @NL80211_FREQUENCY_ATTR_NO_320MHZ: any 320 MHz channel using this channel
++ *	as the primary or any of the secondary channels isn't possible
++ * @NL80211_FREQUENCY_ATTR_NO_EHT: EHT operation is not allowed on this channel
++ *	in current regulatory domain.
+  * @NL80211_FREQUENCY_ATTR_MAX: highest frequency attribute number
+  *	currently defined
+  * @__NL80211_FREQUENCY_ATTR_AFTER_LAST: internal use
+@@ -3887,6 +4041,8 @@
+ 	NL80211_FREQUENCY_ATTR_4MHZ,
+ 	NL80211_FREQUENCY_ATTR_8MHZ,
+ 	NL80211_FREQUENCY_ATTR_16MHZ,
++	NL80211_FREQUENCY_ATTR_NO_320MHZ,
++	NL80211_FREQUENCY_ATTR_NO_EHT,
+ 
+ 	/* keep last */
+ 	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
+@@ -4085,6 +4241,8 @@
+  * @NL80211_RRF_NO_80MHZ: 80MHz operation not allowed
+  * @NL80211_RRF_NO_160MHZ: 160MHz operation not allowed
+  * @NL80211_RRF_NO_HE: HE operation not allowed
++ * @NL80211_RRF_NO_320MHZ: 320MHz operation not allowed
++ * @NL80211_RRF_NO_EHT: EHT operation not allowed
+  */
+ enum nl80211_reg_rule_flags {
+ 	NL80211_RRF_NO_OFDM		= 1<<0,
+@@ -4103,6 +4261,8 @@
+ 	NL80211_RRF_NO_80MHZ		= 1<<15,
+ 	NL80211_RRF_NO_160MHZ		= 1<<16,
+ 	NL80211_RRF_NO_HE		= 1<<17,
++	NL80211_RRF_NO_320MHZ		= 1<<18,
++	NL80211_RRF_NO_EHT		= 1<<19,
+ };
+ 
+ #define NL80211_RRF_PASSIVE_SCAN	NL80211_RRF_NO_IR
+@@ -4600,6 +4760,8 @@
+  * @NL80211_CHAN_WIDTH_4: 4 MHz OFDM channel
+  * @NL80211_CHAN_WIDTH_8: 8 MHz OFDM channel
+  * @NL80211_CHAN_WIDTH_16: 16 MHz OFDM channel
++ * @NL80211_CHAN_WIDTH_320: 320 MHz channel, the %NL80211_ATTR_CENTER_FREQ1
++ *	attribute must be provided as well 
+  */
+ enum nl80211_chan_width {
+ 	NL80211_CHAN_WIDTH_20_NOHT,
+@@ -4615,6 +4777,7 @@
+ 	NL80211_CHAN_WIDTH_4,
+ 	NL80211_CHAN_WIDTH_8,
+ 	NL80211_CHAN_WIDTH_16,
++	NL80211_CHAN_WIDTH_320,
+ };
+ 
+ /**
+@@ -4686,6 +4849,8 @@
+  *	Contains a nested array of signal strength attributes (u8, dBm),
+  *	using the nesting index as the antenna number.
+  * @NL80211_BSS_FREQUENCY_OFFSET: frequency offset in KHz
++ * @NL80211_BSS_MLO_LINK_ID: MLO link ID of the BSS (u8).
++ * @NL80211_BSS_MLD_ADDR: MLD address of this BSS if connected to it.
+  * @__NL80211_BSS_AFTER_LAST: internal
+  * @NL80211_BSS_MAX: highest BSS attribute
+  */
+@@ -4711,6 +4876,8 @@
+ 	NL80211_BSS_PARENT_BSSID,
+ 	NL80211_BSS_CHAIN_SIGNAL,
+ 	NL80211_BSS_FREQUENCY_OFFSET,
++	NL80211_BSS_MLO_LINK_ID,
++	NL80211_BSS_MLD_ADDR,
+ 
+ 	/* keep last */
+ 	__NL80211_BSS_AFTER_LAST,
+@@ -4929,6 +5096,7 @@
+  * @NL80211_BAND_60GHZ: around 60 GHz band (58.32 - 69.12 GHz)
+  * @NL80211_BAND_6GHZ: around 6 GHz band (5.9 - 7.2 GHz)
+  * @NL80211_BAND_S1GHZ: around 900MHz, supported by S1G PHYs
++ * @NL80211_BAND_LC: light communication band (placeholder)
+  * @NUM_NL80211_BANDS: number of bands, avoid using this in userspace
+  *	since newer kernel versions may support more bands
+  */
+@@ -4938,6 +5106,7 @@
+ 	NL80211_BAND_60GHZ,
+ 	NL80211_BAND_6GHZ,
+ 	NL80211_BAND_S1GHZ,
++	NL80211_BAND_LC,
+ 
+ 	NUM_NL80211_BANDS,
+ };
+@@ -5504,7 +5673,7 @@
+  *	=> allows 8 of AP/GO that can have BI gcd >= min gcd
+  *
+  *	numbers = [ #{STA} <= 2 ], channels = 2, max = 2
+- *	=> allows two STAs on different channels
++ *	=> allows two STAs on the same or on different channels
+  *
+  *	numbers = [ #{STA} <= 1, #{P2P-client,P2P-GO} <= 3 ], max = 4
+  *	=> allows a STA plus three P2P interfaces
+@@ -5549,7 +5718,7 @@
+  * @NL80211_PLINK_ESTAB: mesh peer link is established
+  * @NL80211_PLINK_HOLDING: mesh peer link is being closed or cancelled
+  * @NL80211_PLINK_BLOCKED: all frames transmitted from this mesh
+- *	plink are discarded
++ *	plink are discarded, except for authentication frames
+  * @NUM_NL80211_PLINK_STATES: number of peer link states
+  * @MAX_NL80211_PLINK_STATES: highest numerical value of plink states
+  */
+@@ -5588,6 +5757,7 @@
+ #define NL80211_KEK_LEN			16
+ #define NL80211_KCK_EXT_LEN		24
+ #define NL80211_KEK_EXT_LEN		32
++#define NL80211_KCK_EXT_LEN_32		32
+ #define NL80211_REPLAY_CTR_LEN		8
+ 
+ /**
+@@ -5686,13 +5856,15 @@
+ 	NL80211_TDLS_DISABLE_LINK,
+ };
+ 
+-/*
++/**
+  * enum nl80211_ap_sme_features - device-integrated AP features
+- * Reserved for future use, no bits are defined in
+- * NL80211_ATTR_DEVICE_AP_SME yet.
++ * @NL80211_AP_SME_SA_QUERY_OFFLOAD: SA Query procedures offloaded to driver
++ *	when user space indicates support for SA Query procedures offload during
++ *	"start ap" with %NL80211_AP_SETTINGS_SA_QUERY_OFFLOAD_SUPPORT.
++ */
+ enum nl80211_ap_sme_features {
++	NL80211_AP_SME_SA_QUERY_OFFLOAD		= 1 << 0,
+ };
+- */
+ 
+ /**
+  * enum nl80211_feature_flags - device/driver features
+@@ -5703,7 +5875,7 @@
+  * @NL80211_FEATURE_INACTIVITY_TIMER: This driver takes care of freeing up
+  *	the connected inactive stations in AP mode.
+  * @NL80211_FEATURE_CELL_BASE_REG_HINTS: This driver has been tested
+- *	to work properly to suppport receiving regulatory hints from
++ *	to work properly to support receiving regulatory hints from
+  *	cellular base stations.
+  * @NL80211_FEATURE_P2P_DEVICE_NEEDS_CHANNEL: (no longer available, only
+  *	here to reserve the value for API/ABI compatibility)
+@@ -5995,6 +6167,31 @@
+  * @NL80211_EXT_FEATURE_BSS_COLOR: The driver supports BSS color collision
+  *	detection and change announcemnts.
+  *
++ * @NL80211_EXT_FEATURE_FILS_CRYPTO_OFFLOAD: Driver running in AP mode supports
++ *	FILS encryption and decryption for (Re)Association Request and Response
++ *	frames. Userspace has to share FILS AAD details to the driver by using
++ *	@NL80211_CMD_SET_FILS_AAD.
++ *
++ * @NL80211_EXT_FEATURE_RADAR_BACKGROUND: Device supports background radar/CAC
++ *	detection.
++ *
++ * @NL80211_EXT_FEATURE_POWERED_ADDR_CHANGE: Device can perform a MAC address
++ *	change without having to bring the underlying network device down
++ *	first. For example, in station mode this can be used to vary the
++ *	origin MAC address prior to a connection to a new AP for privacy
++ *	or other reasons. Note that certain driver specific restrictions
++ *	might apply, e.g. no scans in progress, no offchannel operations
++ *	in progress, and no active connections.
++ *
++ * @NL80211_EXT_FEATURE_PUNCT: Driver supports preamble puncturing in AP mode.
++ *
++ * @NL80211_EXT_FEATURE_SECURE_NAN: Device supports NAN Pairing which enables
++ *	authentication, data encryption and message integrity.
++ *
++ * @NL80211_EXT_FEATURE_AUTH_AND_DEAUTH_RANDOM_TA: Device supports randomized TA
++ *	in authentication and deauthentication frames sent to unassociated peer
++ *	using @NL80211_CMD_FRAME.
++ *
+  * @NUM_NL80211_EXT_FEATURES: number of extended features.
+  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
+  */
+@@ -6060,6 +6257,12 @@
+ 	NL80211_EXT_FEATURE_SECURE_RTT,
+ 	NL80211_EXT_FEATURE_PROT_RANGE_NEGO_AND_MEASURE,
+ 	NL80211_EXT_FEATURE_BSS_COLOR,
++	NL80211_EXT_FEATURE_FILS_CRYPTO_OFFLOAD,
++	NL80211_EXT_FEATURE_RADAR_BACKGROUND,
++	NL80211_EXT_FEATURE_POWERED_ADDR_CHANGE,
++	NL80211_EXT_FEATURE_PUNCT,
++	NL80211_EXT_FEATURE_SECURE_NAN,
++	NL80211_EXT_FEATURE_AUTH_AND_DEAUTH_RANDOM_TA,
+ 
+ 	/* add new features before the definition below */
+ 	NUM_NL80211_EXT_FEATURES,
+@@ -6174,8 +6377,16 @@
+  * @NL80211_SCAN_FLAG_FREQ_KHZ: report scan results with
+  *	%NL80211_ATTR_SCAN_FREQ_KHZ. This also means
+  *	%NL80211_ATTR_SCAN_FREQUENCIES will not be included.
+- * @NL80211_SCAN_FLAG_COLOCATED_6GHZ: scan for colocated APs reported by
+- *	2.4/5 GHz APs
++ * @NL80211_SCAN_FLAG_COLOCATED_6GHZ: scan for collocated APs reported by
++ *	2.4/5 GHz APs. When the flag is set, the scan logic will use the
++ *	information from the RNR element found in beacons/probe responses
++ *	received on the 2.4/5 GHz channels to actively scan only the 6GHz
++ *	channels on which APs are expected to be found. Note that when not set,
++ *	the scan logic would scan all 6GHz channels, but since transmission of
++ *	probe requests on non PSC channels is limited, it is highly likely that
++ *	these channels would passively be scanned. Also note that when the flag
++ *	is set, in addition to the colocated APs, PSC channels would also be
++ *	scanned if the user space has asked for it.
+  */
+ enum nl80211_scan_flags {
+ 	NL80211_SCAN_FLAG_LOW_PRIORITY				= 1<<0,
+@@ -6252,6 +6463,14 @@
+  *	applicable for ETSI dfs domain where pre-CAC is valid for ever.
+  * @NL80211_RADAR_CAC_STARTED: Channel Availability Check has been started,
+  *	should be generated by HW if NL80211_EXT_FEATURE_DFS_OFFLOAD is enabled.
++ * @NL80211_RADAR_BACKGROUND_CHAN_UPDATE: background channel is updated by the
++ *	driver.
++ * @NL80211_RADAR_BACKGROUND_CHAN_EXPAND: background channel is updated by the
++ *	driver and required to expand main operating channel.
++ * @NL80211_RADAR_STA_CAC_SKIPPED: STA set the DFS state to available
++ *	when receiving CSA/assoc resp
++ * @NL80211_RADAR_STA_CAC_EXPIRED: STA set the DFS state to usable
++ *	when STA is disconnected or leaving the channel
+  */
+ enum nl80211_radar_event {
+ 	NL80211_RADAR_DETECTED,
+@@ -6260,6 +6479,10 @@
+ 	NL80211_RADAR_NOP_FINISHED,
+ 	NL80211_RADAR_PRE_CAC_EXPIRED,
+ 	NL80211_RADAR_CAC_STARTED,
++	NL80211_RADAR_BACKGROUND_CHAN_UPDATE,
++	NL80211_RADAR_BACKGROUND_CHAN_EXPAND,
++	NL80211_RADAR_STA_CAC_SKIPPED,
++	NL80211_RADAR_STA_CAC_EXPIRED,
+ };
+ 
+ /**
+@@ -7200,6 +7423,7 @@
+ 	NL80211_FILS_DISCOVERY_ATTR_INT_MIN,
+ 	NL80211_FILS_DISCOVERY_ATTR_INT_MAX,
+ 	NL80211_FILS_DISCOVERY_ATTR_TMPL,
++	NL80211_UNSOL_BCAST_PROBE_RESP_ATTR_INTE,
+ 
+ 	/* keep last */
+ 	__NL80211_FILS_DISCOVERY_ATTR_LAST,
+@@ -7349,4 +7573,76 @@
+ 	NL80211_SAR_ATTR_SPECS_MAX = __NL80211_SAR_ATTR_SPECS_LAST - 1,
+ };
+ 
++/**
++ * enum nl80211_mbssid_config_attributes - multiple BSSID (MBSSID) and enhanced
++ * multi-BSSID advertisements (EMA) in AP mode.
++ * Kernel uses some of these attributes to advertise driver's support for
++ * MBSSID and EMA.
++ * Remaining attributes should be used by the userspace to configure the
++ * features.
++ *
++ * @__NL80211_MBSSID_CONFIG_ATTR_INVALID: Invalid
++ *
++ * @NL80211_MBSSID_CONFIG_ATTR_MAX_INTERFACES: Used by the kernel to advertise
++ *	the maximum number of MBSSID interfaces supported by the driver.
++ *	Driver should indicate MBSSID support by setting
++ *	wiphy->mbssid_max_interfaces to a value more than or equal to 2.
++ *
++ * @NL80211_MBSSID_CONFIG_ATTR_MAX_EMA_PROFILE_PERIODICITY: Used by the kernel
++ *	to advertise the maximum profile periodicity supported by the driver
++ *	if EMA is enabled. Driver should indicate EMA support to the userspace
++ *	by setting wiphy->ema_max_profile_periodicity to
++ *	a non-zero value.
++ *
++ * @NL80211_MBSSID_CONFIG_ATTR_INDEX: Mandatory parameter to pass the index of
++ *	this BSS (u8) in the multiple BSSID set.
++ *	Value must be set to 0 for the transmitting interface and non-zero for
++ *	all non-transmitting interfaces. The userspace will be responsible
++ *	for using unique indices for the interfaces.
++ *	Range: 0 to wiphy->mbssid_max_interfaces-1.
++ *
++ * @NL80211_MBSSID_CONFIG_ATTR_TX_IFINDEX: Mandatory parameter for
++ *	a non-transmitted profile which provides the interface index (u32) of
++ *	the transmitted profile. The value must match one of the interface
++ *	indices advertised by the kernel. Optional if the interface being set up
++ *	is the transmitting one, however, if provided then the value must match
++ *	the interface index of the same.
++ *
++ * @NL80211_MBSSID_CONFIG_ATTR_EMA: Flag used to enable EMA AP feature.
++ *	Setting this flag is permitted only if the driver advertises EMA support
++ *	by setting wiphy->ema_max_profile_periodicity to non-zero.
++ *
++ * @__NL80211_MBSSID_CONFIG_ATTR_LAST: Internal
++ * @NL80211_MBSSID_CONFIG_ATTR_MAX: highest attribute
++ */
++enum nl80211_mbssid_config_attributes {
++	__NL80211_MBSSID_CONFIG_ATTR_INVALID,
++
++	NL80211_MBSSID_CONFIG_ATTR_MAX_INTERFACES,
++	NL80211_MBSSID_CONFIG_ATTR_MAX_EMA_PROFILE_PERIODICITY,
++	NL80211_MBSSID_CONFIG_ATTR_INDEX,
++	NL80211_MBSSID_CONFIG_ATTR_TX_IFINDEX,
++	NL80211_MBSSID_CONFIG_ATTR_EMA,
++
++	/* keep last */
++	__NL80211_MBSSID_CONFIG_ATTR_LAST,
++	NL80211_MBSSID_CONFIG_ATTR_MAX = __NL80211_MBSSID_CONFIG_ATTR_LAST - 1,
++};
++
++/**
++ * enum nl80211_ap_settings_flags - AP settings flags
++ *
++ * @NL80211_AP_SETTINGS_EXTERNAL_AUTH_SUPPORT: AP supports external
++ *	authentication.
++ * @NL80211_AP_SETTINGS_SA_QUERY_OFFLOAD_SUPPORT: Userspace supports SA Query
++ *	procedures offload to driver. If driver advertises
++ *	%NL80211_AP_SME_SA_QUERY_OFFLOAD in AP SME features, userspace shall
++ *	ignore SA Query procedures and validations when this flag is set by
++ *	userspace.
++ */
++enum nl80211_ap_settings_flags {
++	NL80211_AP_SETTINGS_EXTERNAL_AUTH_SUPPORT	= 1 << 0,
++	NL80211_AP_SETTINGS_SA_QUERY_OFFLOAD_SUPPORT	= 1 << 1,
++};
++
+ #endif /* __LINUX_NL80211_H */
+diff -uNr a/devices.txt b/devices.txt
+--- a/devices.txt	2023-05-10 18:46:05.000000000 +0800
++++ b/devices.txt	2024-10-14 11:15:23.000000000 +0800
+@@ -150,6 +150,8 @@
+ 0x168c 0x002e 0x1a3b 0x1121    0      0  "Atheros"  "AR9287"
+ 0x168c 0x002e 0x0777 0xe0a2    8      0  "Ubiquiti" "NanoStation Loco M2 (XM)" /* wrong offset! */
+ 0x168c 0x002e 0x168c 0x30a4    0      0  "Atheros"  "AR9287"
++0x168c 0x002e 0x168c 0xa199    0      0  "Atheros"  "AR9287"
++0x168c 0x0030 0x168c 0x3112    0      0  "Atheros"  "AR9380"
+ 0x168c 0x0030 0x168c 0x3114    0      0  "Atheros"  "AR9390"
+ 0x168c 0x0030 0x168c 0x9330    0      0  "Atheros"  "AR9330"
+ 0x168c 0x0030 0x168c 0x9340    0      0  "Atheros"  "AR9340"
+@@ -158,6 +160,7 @@
+ 0x168c 0x0033 0x168c 0x9560    0      0  "Qualcomm Atheros"  "QCA9560"
+ 0x168c 0x0033 0x168c 0xa120    0      0  "Atheros"  "AR9580"
+ 0x168c 0x0033 0x168c 0xa136    0      0  "Atheros"  "AR9580"
++0x168c 0x0033 0x168c 0x3123    0      0  "Atheros"  "AR9590"
+ 0x168c 0x0033 0x19b6 0xd014    0      0  "MikroTik" "R11e-5HnD"
+ 0x168c 0x0033 0x19b6 0xd057    0      0  "MikroTik" "R11e-5HnDr2"
+ 0x168c 0x0033 0x19b6 0xd016    0      0  "MikroTik" "R11e-2HPnD"
+@@ -168,6 +171,7 @@
+ 0x168c 0x003c 0x19b6 0xd03c    0      0  "Mikrotik" "R11e-5HacT"
+ 0x168c 0x003c 0x168c 0x4019    0      0  "Qualcomm Atheros" "IPQ4019"
+ 0x168c 0x003c 0x19b6 0xd075    0      0  "Mikrotik" "R11e-5HacD"
++0x168c 0x003e 0x168c 0x3361    0      0  "Qualcomm Atheros" "QCA6174"
+ 0x168c 0x0040 0x168c 0x0002    0      0  "Qualcomm Atheros" "QCA9990"
+ 0x168c 0x0046 0x168c 0xcafe    0      0  "Qualcomm Atheros" "QCA9984"
+ 0x168c 0x0050 0x0000 0x0000    0      0  "Qualcomm Atheros" "QCA9887"
+@@ -196,9 +200,12 @@
+ 0x14c3 0x7650 0x14c3 0x7650    0      0  "MediaTek" "MT7610E"
+ 0x14c3 0x7662 0x14c3 0x7662    0      0  "MediaTek" "MT76x2E"
+ 0x14c3 0x7915 0x14c3 0x7915    0      0  "MediaTek" "MT7915E"
++0x14c3 0x7906 0x14c3 0x7906    0      0  "MediaTek" "MT7916AN"
++0x14c3 0x7990 0x14C3 0x6639    0      0  "MediaTek" "MT7996E"
+ 0x14c3 0x7986 0x14c3 0x7986    0      0  "MediaTek" "MT7986"
+ 0x14e4 0xaa52 0x14e4 0xaa52    0      0  "Broadcom" "BCM43602"
+ 0x02d0 0xa9a6 0x0000 0x0000    0      0  "Cypress"  "CYW43455"
++0x02d0 0x4345 0x0000 0x0000    0      0  "Cypress"  "CYW43455"
+ 0x1ae9 0x0310 0x1ae9 0x0000    0      0  "Wilocity" "Wil6210"
+ 0x325B 0x0206 0x0000 0x0000    0      0  "Morse Micro" "HaLow WiFi"
+ 0x325B 0x0306 0x0000 0x0000    0      0  "Morse Micro" "HaLow WiFi"
+@@ -206,4 +213,71 @@
+ 
+ # USB devices
+ # 0x0000 | 0x0000 | vendor id | product id | ...
++# mt7601u/usb.c
++0x0000 0x0000 0x148f 0x7601    0      0  "MediaTek" "MT7601U"
++# mt7921/usb.c
+ 0x0000 0x0000 0x0e8d 0x7961    0      0  "MediaTek" "MT7921AU"
++# mt76x2/usb.c
++0x0000 0x0000 0x0b05 0x1833    0      0  "ASUS" "USB-AC54"
++0x0000 0x0000 0x0b05 0x17eb    0      0  "ASUS" "USB-AC55"
++0x0000 0x0000 0x0b05 0x180b    0      0  "ASUS" "USB-N53 B1"
++0x0000 0x0000 0x0e8d 0x7612    0      0  "Aukey" "USBAC1200" /* Alfa AWUS036ACM */
++0x0000 0x0000 0x057c 0x8503    0      0  "AVM" "FRITZ!WLAN AC860"
++0x0000 0x0000 0x7392 0xb711    0      0  "Edimax" "EW-7722UAC"
++0x0000 0x0000 0x0e8d 0x7632    0      0  "High Cloud" "HC-M7662BU1"
++0x0000 0x0000 0x2c4e 0x0103    0      0  "Mercury" "UD13"
++0x0000 0x0000 0x0846 0x9053    0      0  "Netgear" "A6210"
++0x0000 0x0000 0x045e 0x02e6    0      0  "Microsoft" "XBox One Wireless Adapter"
++0x0000 0x0000 0x045e 0x02fe    0      0  "Microsoft" "XBox One Wireless Adapter"
++# mt76x0/usb.c
++0x0000 0x0000 0x148f 0x7610    0      0  "MediaTek" "MT7610U"
++0x0000 0x0000 0x13b1 0x003e    0      0  "Linksys" "AE6000"
++0x0000 0x0000 0x0e8d 0x7610    0      0  "Sabrent" "NTWLAC"
++0x0000 0x0000 0x7392 0xa711    0      0  "Edimax" "7711MAC"
++0x0000 0x0000 0x148f 0x761a    0      0  "TP-Link" "TL-WDN5200"
++0x0000 0x0000 0x0b05 0x17d1    0      0  "ASUS" "USB-AC51"
++0x0000 0x0000 0x0b05 0x17db    0      0  "ASUS" "USB-AC50"
++0x0000 0x0000 0x0df6 0x0075    0      0  "Sitecom" "WLA-3100"
++0x0000 0x0000 0x2019 0xab31    0      0  "Planex" "GW-450D"
++0x0000 0x0000 0x2001 0x3d02    0      0  "D-Link" "DWA-171 rev B1"
++0x0000 0x0000 0x0586 0x3425    0      0  "Zyxel" "NWD6505"
++0x0000 0x0000 0x07b8 0x7610    0      0  "AboCom" "AU7212"
++0x0000 0x0000 0x04bb 0x0951    0      0  "I-O DATA" "WN-AC433UK"
++0x0000 0x0000 0x057c 0x8502    0      0  "AVM" "FRITZ!WLAN AC430"
++0x0000 0x0000 0x293c 0x5702    0      0  "Comcast" "Xfinity KXW02AAA"
++0x0000 0x0000 0x20f4 0x806b    0      0  "TRENDnet" "TEW-806UBH"
++0x0000 0x0000 0x7392 0xc711    0      0  "Devolo" "WiFi Stick ac"
++0x0000 0x0000 0x0df6 0x0079    0      0  "Sitecom" "WL-356"
++0x0000 0x0000 0x2357 0x0123    0      0  "TP-Link" "T2UHP US v1"
++0x0000 0x0000 0x2357 0x010b    0      0  "TP-Link" "T2UHP UN v1"
++0x0000 0x0000 0x2357 0x0105    0      0  "TP-Link" "Archer T1U"
++0x0000 0x0000 0x0e8d 0x7630    0      0  "MediaTek" "MT7630U"
++0x0000 0x0000 0x0e8d 0x7650    0      0  "MediaTek" "MT7650U"
++# mt7615/usb.c
++0x0000 0x0000 0x0e8d 0x7663    0      0  "MediaTek" "MT7663U"
++0x0000 0x0000 0x043e 0x310c    0      0  "LG" "LGSBWAC02"
++# rtl8xxxu/rtl8xxxu_core.c
++0x0000 0x0000 0x0bda 0x8176    0      0  "Realtek" "RTL8188CU"
++0x0000 0x0000 0x0bda 0xf179    0      0  "Realtek" "RTL8188FTV"
++
++# FDT compatible strings
++# "compatible" | txpower offset | frequency offset | ...
++"qca,ar9130-wmac"       0      0  "Atheros"  "AR9130"
++"qca,ar9330-wmac"       0      0  "Atheros"  "AR9330"
++"qca,ar9340-wmac"       0      0  "Atheros"  "AR9340"
++"qca,qca9530-wmac"      0      0  "Qualcomm Atheros"  "QCA9530"
++"qca,qca9550-wmac"      0      0  "Qualcomm Atheros"  "QCA9550"
++"qca,qca9560-wmac"      0      0  "Qualcomm Atheros"  "QCA9560"
++"qcom,ipq4019-wifi"     0      0  "Qualcomm Atheros" "IPQ4019"
++"qcom,ipq6018-wifi"     0      0  "Qualcomm Atheros" "IPQ6018"
++"qcom,ipq8074-wifi"     0      0  "Qualcomm Atheros" "IPQ8074"
++"mediatek,mt7622-wmac"  0      0  "MediaTek" "MT7622"
++"mediatek,mt7628-wmac"  0      0  "MediaTek" "MT7628"
++"mediatek,mt7981-wmac"  0      0  "MediaTek" "MT7981"
++"mediatek,mt7986-wmac"  0      0  "MediaTek" "MT7986"
++"ralink,rt2880-wmac"    0      0  "Ralink" "Rt2880"
++"ralink,rt3050-wmac"    0      0  "Ralink" "Rt3050"
++"ralink,rt3352-wmac"    0      0  "Ralink" "Rt3352"
++"ralink,rt3883-wmac"    0      0  "Ralink" "Rt3883"
++"ralink,rt5350-wmac"    0      0  "Ralink" "Rt5350"
++"ralink,rt7620-wmac"    0      0  "MediaTek" "MT7620"
+\ No newline at end of file
+diff -uNr a/include/iwinfo/utils.h b/include/iwinfo/utils.h
+--- a/include/iwinfo/utils.h	2023-05-10 18:46:05.000000000 +0800
++++ b/include/iwinfo/utils.h	2024-10-14 13:55:46.000000000 +0800
+@@ -53,6 +53,7 @@
+ int iwinfo_htmode_is_ht(int htmode);
+ int iwinfo_htmode_is_vht(int htmode);
+ int iwinfo_htmode_is_he(int htmode);
++int iwinfo_htmode_is_eht(int htmode);
+ 
+ int iwinfo_ifup(const char *ifname);
+ int iwinfo_ifdown(const char *ifname);
+diff -uNr a/include/iwinfo.h b/include/iwinfo.h
+--- a/include/iwinfo.h	2023-05-10 18:46:05.000000000 +0800
++++ b/include/iwinfo.h	2024-12-31 14:52:02.486302500 +0800
+@@ -22,100 +22,204 @@
+ 
+ #define IWINFO_BUFSIZE	24 * 1024
+ #define IWINFO_ESSID_MAX_SIZE	32
++enum iwinfo_80211 {
++	IWINFO_80211_A = 0,
++	IWINFO_80211_B,
++	IWINFO_80211_G,
++	IWINFO_80211_N,
++	IWINFO_80211_AC,
++	IWINFO_80211_AD,
++	IWINFO_80211_AX,
++	IWINFO_80211_AH,
++	IWINFO_80211_BE,
++	/* keep last */
++	IWINFO_80211_COUNT
++};
++
++#define IWINFO_80211_A       (1 << IWINFO_80211_A)
++#define IWINFO_80211_B       (1 << IWINFO_80211_B)
++#define IWINFO_80211_G       (1 << IWINFO_80211_G)
++#define IWINFO_80211_N       (1 << IWINFO_80211_N)
++#define IWINFO_80211_AC      (1 << IWINFO_80211_AC)
++#define IWINFO_80211_AD      (1 << IWINFO_80211_AD)
++#define IWINFO_80211_AX      (1 << IWINFO_80211_AX)
++#define IWINFO_80211_AH      (1 << IWINFO_80211_AH)
++#define IWINFO_80211_BE      (1 << IWINFO_80211_BE)
++// #define IWINFO_80211_COUNT   IWINFO_80211_COUNT
++extern const char * const IWINFO_80211_NAMES[IWINFO_80211_COUNT];
+ 
+-#define IWINFO_80211_A       (1 << 0)
+-#define IWINFO_80211_B       (1 << 1)
+-#define IWINFO_80211_G       (1 << 2)
+-#define IWINFO_80211_N       (1 << 3)
+-#define IWINFO_80211_AC      (1 << 4)
+-#define IWINFO_80211_AD      (1 << 5)
+-#define IWINFO_80211_AX      (1 << 6)
+-#define IWINFO_80211_AH      (1 << 7)
+-#define IWINFO_80211_COUNT   8
+-
+-#define IWINFO_BAND_24       (1 << 0)
+-#define IWINFO_BAND_5        (1 << 1)
+-#define IWINFO_BAND_6        (1 << 2)
+-#define IWINFO_BAND_60       (1 << 3)
+-#define IWINFO_BAND_09       (1 << 4)
+-#define IWINFO_BAND_COUNT    5
+-
+-#define IWINFO_CIPHER_NONE    (1 << 0)
+-#define IWINFO_CIPHER_WEP40   (1 << 1)
+-#define IWINFO_CIPHER_TKIP    (1 << 2)
+-#define IWINFO_CIPHER_WRAP    (1 << 3)
+-#define IWINFO_CIPHER_CCMP    (1 << 4)
+-#define IWINFO_CIPHER_WEP104  (1 << 5)
+-#define IWINFO_CIPHER_AESOCB  (1 << 6)
+-#define IWINFO_CIPHER_CKIP    (1 << 7)
+-#define IWINFO_CIPHER_GCMP    (1 << 8)
+-#define IWINFO_CIPHER_CCMP256 (1 << 9)
+-#define IWINFO_CIPHER_GCMP256 (1 << 10)
+-#define IWINFO_CIPHER_COUNT  11
+-
+-#define IWINFO_KMGMT_NONE    (1 << 0)
+-#define IWINFO_KMGMT_8021x   (1 << 1)
+-#define IWINFO_KMGMT_PSK     (1 << 2)
+-#define IWINFO_KMGMT_SAE     (1 << 3)
+-#define IWINFO_KMGMT_OWE     (1 << 4)
+-#define IWINFO_KMGMT_COUNT   5
+-
+-#define IWINFO_AUTH_OPEN     (1 << 0)
+-#define IWINFO_AUTH_SHARED   (1 << 1)
+-#define IWINFO_AUTH_COUNT    2
+-
+-#define IWINFO_FREQ_NO_10MHZ		(1 << 0)
+-#define IWINFO_FREQ_NO_20MHZ		(1 << 1)
+-#define IWINFO_FREQ_NO_HT40PLUS		(1 << 2)
+-#define IWINFO_FREQ_NO_HT40MINUS	(1 << 3)
+-#define IWINFO_FREQ_NO_80MHZ		(1 << 4)
+-#define IWINFO_FREQ_NO_160MHZ		(1 << 5)
+-#define IWINFO_FREQ_NO_HE		(1 << 6)
+-
+-#define S1G_CHAN_WIDTH_OFFSET		(2)
+ 
+-extern const char * const IWINFO_80211_NAMES[IWINFO_80211_COUNT];
++enum iwinfo_band {
++	IWINFO_BAND_24 = 0,
++	IWINFO_BAND_5,
++	IWINFO_BAND_6,
++	IWINFO_BAND_60,
++	IWINFO_BAND_09,
++	/* keep last */
++	IWINFO_BAND_COUNT
++};
++
++#define IWINFO_BAND_24       (1 << IWINFO_BAND_24)
++#define IWINFO_BAND_5        (1 << IWINFO_BAND_5)
++#define IWINFO_BAND_6        (1 << IWINFO_BAND_6)
++#define IWINFO_BAND_60       (1 << IWINFO_BAND_60)
++#define IWINFO_BAND_09       (1 << IWINFO_BAND_09)
++// #define IWINFO_BAND_COUNT    IWINFO_BAND_COUNT
+ extern const char * const IWINFO_BAND_NAMES[IWINFO_BAND_COUNT];
++
++enum iwinfo_cipher {
++	IWINFO_CIPHER_NONE = 0,
++	IWINFO_CIPHER_WEP40,
++	IWINFO_CIPHER_TKIP,
++	IWINFO_CIPHER_WRAP,
++	IWINFO_CIPHER_CCMP,
++	IWINFO_CIPHER_WEP104,
++	IWINFO_CIPHER_AESOCB,
++	IWINFO_CIPHER_CKIP,
++	IWINFO_CIPHER_GCMP,
++	IWINFO_CIPHER_CCMP256,
++	IWINFO_CIPHER_GCMP256,
++
++	/* keep last */
++	IWINFO_CIPHER_COUNT
++};
++
++#define IWINFO_CIPHER_NONE    (1 << IWINFO_CIPHER_NONE)
++#define IWINFO_CIPHER_WEP40   (1 << IWINFO_CIPHER_WEP40)
++#define IWINFO_CIPHER_TKIP    (1 << IWINFO_CIPHER_TKIP)
++#define IWINFO_CIPHER_WRAP    (1 << IWINFO_CIPHER_WRAP)
++#define IWINFO_CIPHER_CCMP    (1 << IWINFO_CIPHER_CCMP)
++#define IWINFO_CIPHER_WEP104  (1 << IWINFO_CIPHER_WEP104)
++#define IWINFO_CIPHER_AESOCB  (1 << IWINFO_CIPHER_AESOCB)
++#define IWINFO_CIPHER_CKIP    (1 << IWINFO_CIPHER_CKIP)
++#define IWINFO_CIPHER_GCMP    (1 << IWINFO_CIPHER_GCMP)
++#define IWINFO_CIPHER_CCMP256 (1 << IWINFO_CIPHER_CCMP256)
++#define IWINFO_CIPHER_GCMP256 (1 << IWINFO_CIPHER_GCMP256)
++
+ extern const char * const IWINFO_CIPHER_NAMES[IWINFO_CIPHER_COUNT];
++
++
++enum iwinfo_kmgmt {
++	IWINFO_KMGMT_NONE = 0,
++	IWINFO_KMGMT_8021x,
++	IWINFO_KMGMT_PSK,
++	IWINFO_KMGMT_SAE,
++	IWINFO_KMGMT_OWE,
++
++	/* keep last */
++	IWINFO_KMGMT_COUNT
++};
++
++#define IWINFO_KMGMT_NONE    (1 << IWINFO_KMGMT_NONE)
++#define IWINFO_KMGMT_8021x   (1 << IWINFO_KMGMT_8021x)
++#define IWINFO_KMGMT_PSK     (1 << IWINFO_KMGMT_PSK)
++#define IWINFO_KMGMT_SAE     (1 << IWINFO_KMGMT_SAE)
++#define IWINFO_KMGMT_OWE     (1 << IWINFO_KMGMT_OWE)
+ extern const char * const IWINFO_KMGMT_NAMES[IWINFO_KMGMT_COUNT];
++
++enum iwinfo_auth {
++	IWINFO_AUTH_OPEN = 0,
++	IWINFO_AUTH_SHARED,
++
++	/* keep last */
++	IWINFO_AUTH_COUNT
++};
++
++#define IWINFO_AUTH_OPEN     (1 << IWINFO_AUTH_OPEN)
++#define IWINFO_AUTH_SHARED   (1 << IWINFO_AUTH_SHARED)
+ extern const char * const IWINFO_AUTH_NAMES[IWINFO_AUTH_COUNT];
+ 
++enum iwinfo_freq_flag {
++	IWINFO_FREQ_NO_10MHZ = 0,
++	IWINFO_FREQ_NO_20MHZ,
++	IWINFO_FREQ_NO_HT40PLUS,
++	IWINFO_FREQ_NO_HT40MINUS,
++	IWINFO_FREQ_NO_80MHZ,
++	IWINFO_FREQ_NO_160MHZ,
++	IWINFO_FREQ_NO_HE,
++	IWINFO_FREQ_NO_IR,
++	IWINFO_FREQ_INDOOR_ONLY,
++
++	/* keep last */
++	IWINFO_FREQ_FLAG_COUNT,
++};
++#define S1G_CHAN_WIDTH_OFFSET		(2)
++
++#define IWINFO_FREQ_NO_10MHZ       (1 << IWINFO_FREQ_NO_10MHZ)
++#define IWINFO_FREQ_NO_20MHZ       (1 << IWINFO_FREQ_NO_20MHZ)
++#define IWINFO_FREQ_NO_HT40PLUS    (1 << IWINFO_FREQ_NO_HT40PLUS)
++#define IWINFO_FREQ_NO_HT40MINUS   (1 << IWINFO_FREQ_NO_HT40MINUS)
++#define IWINFO_FREQ_NO_80MHZ       (1 << IWINFO_FREQ_NO_80MHZ)
++#define IWINFO_FREQ_NO_160MHZ      (1 << IWINFO_FREQ_NO_160MHZ)
++#define IWINFO_FREQ_NO_HE          (1 << IWINFO_FREQ_NO_HE)
++#define IWINFO_FREQ_NO_IR          (1 << IWINFO_FREQ_NO_IR)
++#define IWINFO_FREQ_INDOOR_ONLY    (1 << IWINFO_FREQ_INDOOR_ONLY)
++
++extern const char * const IWINFO_FREQ_FLAG_NAMES[IWINFO_FREQ_FLAG_COUNT];
+ 
+ enum iwinfo_opmode {
+-	IWINFO_OPMODE_UNKNOWN    = 0,
+-	IWINFO_OPMODE_MASTER     = 1,
+-	IWINFO_OPMODE_ADHOC      = 2,
+-	IWINFO_OPMODE_CLIENT     = 3,
+-	IWINFO_OPMODE_MONITOR    = 4,
+-	IWINFO_OPMODE_AP_VLAN    = 5,
+-	IWINFO_OPMODE_WDS        = 6,
+-	IWINFO_OPMODE_MESHPOINT  = 7,
+-	IWINFO_OPMODE_P2P_CLIENT = 8,
+-	IWINFO_OPMODE_P2P_GO     = 9,
++	IWINFO_OPMODE_UNKNOWN = 0,
++	IWINFO_OPMODE_MASTER,
++	IWINFO_OPMODE_ADHOC,
++	IWINFO_OPMODE_CLIENT,
++	IWINFO_OPMODE_MONITOR,
++	IWINFO_OPMODE_AP_VLAN,
++	IWINFO_OPMODE_WDS,
++	IWINFO_OPMODE_MESHPOINT,
++	IWINFO_OPMODE_P2P_CLIENT,
++	IWINFO_OPMODE_P2P_GO,
+ 
+-	IWINFO_OPMODE_COUNT      = 10,
++	/* keep last */
++	IWINFO_OPMODE_COUNT
+ };
+ 
+ extern const char * const IWINFO_OPMODE_NAMES[IWINFO_OPMODE_COUNT];
+ 
+ 
+ enum iwinfo_htmode {
+-	IWINFO_HTMODE_HT20       = (1 << 0),
+-	IWINFO_HTMODE_HT40       = (1 << 1),
+-	IWINFO_HTMODE_VHT20      = (1 << 2),
+-	IWINFO_HTMODE_VHT40      = (1 << 3),
+-	IWINFO_HTMODE_VHT80      = (1 << 4),
+-	IWINFO_HTMODE_VHT80_80   = (1 << 5),
+-	IWINFO_HTMODE_VHT160     = (1 << 6),
+-	IWINFO_HTMODE_NOHT       = (1 << 7),
+-	IWINFO_HTMODE_HE20       = (1 << 8),
+-	IWINFO_HTMODE_HE40       = (1 << 9),
+-	IWINFO_HTMODE_HE80       = (1 << 10),
+-	IWINFO_HTMODE_HE80_80    = (1 << 11),
+-	IWINFO_HTMODE_HE160      = (1 << 12),
+-
+-	IWINFO_HTMODE_COUNT      = 13
+-};
++	IWINFO_HTMODE_HT20 = 0,
++	IWINFO_HTMODE_HT40,
++	IWINFO_HTMODE_VHT20,
++	IWINFO_HTMODE_VHT40,
++	IWINFO_HTMODE_VHT80,
++	IWINFO_HTMODE_VHT80_80,
++	IWINFO_HTMODE_VHT160,
++	IWINFO_HTMODE_NOHT,
++	IWINFO_HTMODE_HE20,
++	IWINFO_HTMODE_HE40,
++	IWINFO_HTMODE_HE80,
++	IWINFO_HTMODE_HE80_80,
++	IWINFO_HTMODE_HE160,
++
++	IWINFO_HTMODE_EHT20,
++	IWINFO_HTMODE_EHT40,
++	IWINFO_HTMODE_EHT80,
++	IWINFO_HTMODE_EHT80_80,
++	IWINFO_HTMODE_EHT160,
++	IWINFO_HTMODE_EHT320,
++	/* keep last */
++	IWINFO_HTMODE_COUNT
++};
++
++#define IWINFO_HTMODE_HT20       (1 << IWINFO_HTMODE_HT20)
++#define IWINFO_HTMODE_HT40       (1 << IWINFO_HTMODE_HT40)
++#define IWINFO_HTMODE_VHT20      (1 << IWINFO_HTMODE_VHT20)
++#define IWINFO_HTMODE_VHT40      (1 << IWINFO_HTMODE_VHT40)
++#define IWINFO_HTMODE_VHT80      (1 << IWINFO_HTMODE_VHT80)
++#define IWINFO_HTMODE_VHT80_80   (1 << IWINFO_HTMODE_VHT80_80)
++#define IWINFO_HTMODE_VHT160     (1 << IWINFO_HTMODE_VHT160)
++#define IWINFO_HTMODE_NOHT       (1 << IWINFO_HTMODE_NOHT)
++#define IWINFO_HTMODE_HE20       (1 << IWINFO_HTMODE_HE20)
++#define IWINFO_HTMODE_HE40       (1 << IWINFO_HTMODE_HE40)
++#define IWINFO_HTMODE_HE80       (1 << IWINFO_HTMODE_HE80)
++#define IWINFO_HTMODE_HE80_80    (1 << IWINFO_HTMODE_HE80_80)
++#define IWINFO_HTMODE_HE160      (1 << IWINFO_HTMODE_HE160)
++#define IWINFO_HTMODE_EHT20      (1 << IWINFO_HTMODE_EHT20)
++#define IWINFO_HTMODE_EHT40      (1 << IWINFO_HTMODE_EHT40)
++#define IWINFO_HTMODE_EHT80      (1 << IWINFO_HTMODE_EHT80)
++#define IWINFO_HTMODE_EHT80_80   (1 << IWINFO_HTMODE_EHT80_80)
++#define IWINFO_HTMODE_EHT160     (1 << IWINFO_HTMODE_EHT160)
++#define IWINFO_HTMODE_EHT320     (1 << IWINFO_HTMODE_EHT320)
+ 
+ extern const char * const IWINFO_HTMODE_NAMES[IWINFO_HTMODE_COUNT];
+ 
+@@ -128,10 +232,13 @@
+ 	uint8_t is_ht:1;
+ 	uint8_t is_vht:1;
+ 	uint8_t is_he:1;
++	uint8_t is_eht:1;
+ 	uint8_t he_gi;
+ 	uint8_t he_dcm;
+ 	uint8_t mhz;
+ 	uint8_t nss;
++	uint8_t mhz_hi;
++	uint8_t eht_gi;
+ };
+ 
+ struct iwinfo_assoclist_entry {
+@@ -146,8 +253,8 @@
+ 	uint64_t rx_drop_misc;
+ 	struct iwinfo_rate_entry rx_rate;
+ 	struct iwinfo_rate_entry tx_rate;
+-	uint32_t rx_bytes;
+-	uint32_t tx_bytes;
++	uint64_t rx_bytes;
++	uint64_t tx_bytes;
+ 	uint32_t tx_retries;
+ 	uint32_t tx_failed;
+ 	uint64_t t_offset;
+@@ -182,6 +289,7 @@
+ };
+ 
+ struct iwinfo_freqlist_entry {
++	uint8_t band;
+ 	uint8_t channel;
+ 	uint32_t mhz;
+ 	uint8_t restricted;
+@@ -245,7 +353,9 @@
+ 	uint8_t mac[6];
+ 	char ssid[IWINFO_ESSID_MAX_SIZE+1];
+ 	enum iwinfo_opmode mode;
++	uint8_t band;
+ 	uint8_t channel;
++	uint32_t mhz;
+ 	uint8_t signal;
+ 	uint8_t quality;
+ 	uint8_t quality_max;
+@@ -270,6 +380,7 @@
+ 	uint16_t device_id;
+ 	uint16_t subsystem_vendor_id;
+ 	uint16_t subsystem_device_id;
++	char compatible[128];
+ };
+ 
+ struct iwinfo_hardware_entry {
+@@ -281,6 +392,7 @@
+ 	uint16_t subsystem_device_id;
+ 	int16_t txpower_offset;
+ 	int16_t frequency_offset;
++	char compatible[128];
+ };
+ 
+ extern const struct iwinfo_iso3166_label IWINFO_ISO3166_NAMES[];
+diff -uNr a/iwinfo_cli.c b/iwinfo_cli.c
+--- a/iwinfo_cli.c	2023-05-10 18:46:05.000000000 +0800
++++ b/iwinfo_cli.c	2024-10-14 14:01:33.000000000 +0800
+@@ -44,6 +44,17 @@
+ 	return buf;
+ }
+ 
++static const char *format_band(int band)
++{
++	const char *name;
++
++	name = iwinfo_band_name(band);
++	if (name)
++		return name;
++
++	return "unknown";
++}
++
+ static char * format_channel(int ch)
+ {
+ 	static char buf[16];
+@@ -68,6 +79,25 @@
+ 	return buf;
+ }
+ 
++static char * format_freqflags(uint32_t flags)
++{
++	static char str[512] = "[";
++	char *pos = str + 1;
++	int i;
++
++	if (!flags)
++		return "";
++
++	for (i = 0; i < IWINFO_FREQ_FLAG_COUNT; i++)
++		if (flags & (1 << i))
++			pos += sprintf(pos, "%s, ", IWINFO_FREQ_FLAG_NAMES[i]);
++
++	*(pos - 2) = ']';
++	*(pos - 1) = 0;
++
++	return str;
++}
++
+ static char * format_txpower(int pwr)
+ {
+ 	static char buf[16];
+@@ -297,6 +327,17 @@
+ 			p += snprintf(p, l, ", HE-DCM %d", r->he_dcm);
+ 			l = sizeof(buf) - (p - buf);
+ 		}
++		else if (r->is_eht)
++		{
++			p += snprintf(p, l, ", EHT-MCS %d, %dMHz", r->mcs, r->mhz_hi * 256 + r->mhz);
++			l = sizeof(buf) - (p - buf);
++
++			p += snprintf(p, l, ", EHT-NSS %d", r->nss);
++			l = sizeof(buf) - (p - buf);
++
++			p += snprintf(p, l, ", EHT-GI %d", r->eht_gi);
++			l = sizeof(buf) - (p - buf);
++		}
+ 	}
+ 
+ 	return buf;
+@@ -348,9 +389,16 @@
+ 
+ 	if (!iw->hardware_id(ifname, (char *)&ids))
+ 	{
+-		snprintf(buf, sizeof(buf), "%04X:%04X %04X:%04X",
+-			ids.vendor_id, ids.device_id,
+-			ids.subsystem_vendor_id, ids.subsystem_device_id);
++		if (strlen(ids.compatible) > 0)
++			snprintf(buf, sizeof(buf), "embedded");
++		else if (ids.vendor_id == 0 && ids.device_id == 0 &&
++			 ids.subsystem_vendor_id != 0 && ids.subsystem_device_id != 0)
++			snprintf(buf, sizeof(buf), "USB %04X:%04X",
++				ids.subsystem_vendor_id, ids.subsystem_device_id);
++		else
++			snprintf(buf, sizeof(buf), "%04X:%04X %04X:%04X",
++				ids.vendor_id, ids.device_id,
++				ids.subsystem_vendor_id, ids.subsystem_device_id);
+ 	}
+ 	else
+ 	{
+@@ -654,8 +702,10 @@
+ 			format_bssid(e->mac));
+ 		printf("          ESSID: %s\n",
+ 			format_ssid(e->ssid));
+-		printf("          Mode: %s  Channel: %s\n",
++		printf("          Mode: %s  Frequency: %s  Band: %s  Channel: %s\n",
+ 			IWINFO_OPMODE_NAMES[e->mode],
++			format_frequency(e->mhz),
++			format_band(e->band),
+ 			format_channel(e->channel));
+ 		printf("          Signal: %s  Quality: %s/%s\n",
+ 			format_signal(e->signal - 0x100),
+@@ -746,11 +796,12 @@
+ 	{
+ 		e = (struct iwinfo_freqlist_entry *) &buf[i];
+ 
+-		printf("%s %s (Channel %s)%s\n",
++		printf("%s %s (Band: %s, Channel %s) %s\n",
+ 			(freq == e->mhz) ? "*" : " ",
+ 			format_frequency(e->mhz),
++			format_band(e->band),
+ 			format_channel(e->channel),
+-			e->restricted ? " [restricted]" : "");
++			format_freqflags(e->flags));
+ 	}
+ }
+ 
+diff -uNr a/iwinfo_lib.c b/iwinfo_lib.c
+--- a/iwinfo_lib.c	2023-05-10 18:46:05.000000000 +0800
++++ b/iwinfo_lib.c	2024-10-14 14:08:17.000000000 +0800
+@@ -31,6 +31,7 @@
+ 	"ad",
+ 	"ax",
+ 	"ah",
++	"be",
+ };
+ 
+ const char * const IWINFO_BAND_NAMES[IWINFO_BAND_COUNT] = {
+@@ -94,7 +95,25 @@
+ 	"HE40",
+ 	"HE80",
+ 	"HE80+80",
+-	"HE160"
++	"HE160",
++	"EHT20",
++	"EHT40",
++	"EHT80",
++	"EHT80+80",
++	"EHT160",
++	"EHT320",
++};
++
++const char * const IWINFO_FREQ_FLAG_NAMES[IWINFO_FREQ_FLAG_COUNT] = {
++	"NO_10MHZ",
++	"NO_20MHZ",
++	"NO_HT40+",
++	"NO_HT40-",
++	"NO_80MHZ",
++	"NO_160MHZ",
++	"NO_HE",
++	"NO_IR",
++	"INDOOR_ONLY",
+ };
+ 
+ const char * const ht_secondary_offset[4] = {
+diff -uNr a/iwinfo_lua.c b/iwinfo_lua.c
+--- a/iwinfo_lua.c	2023-05-10 18:46:05.000000000 +0800
++++ b/iwinfo_lua.c	2024-10-14 14:16:35.000000000 +0800
+@@ -279,8 +279,12 @@
+ 	lua_pushboolean(L, r->is_he);
+ 	lua_setfield(L, -2, rx ? "rx_he" : "tx_he");
+ 
+-	lua_pushnumber(L, r->mhz);
+-	lua_setfield(L, -2, rx ? "rx_mhz" : "tx_mhz");
++	lua_pushboolean(L, r->is_eht);
++	lua_setfield(L, -2, rx ? "rx_eht" : "tx_eht");
++
++	lua_pushnumber(L, r->mhz_hi * 256 + r->mhz);
++	// lua_pushnumber(L, r->mhz);
++	 lua_setfield(L, -2, rx ? "rx_mhz" : "tx_mhz");
+ 
+ 	if (r->is_ht)
+ 	{
+@@ -293,7 +297,7 @@
+ 		lua_pushboolean(L, r->is_short_gi);
+ 		lua_setfield(L, -2, rx ? "rx_short_gi" : "tx_short_gi");
+ 	}
+-	else if (r->is_vht || r->is_he)
++	else if (r->is_vht || r->is_he | r->is_eht)
+ 	{
+ 		lua_pushnumber(L, r->mcs);
+ 		lua_setfield(L, -2, rx ? "rx_mcs" : "tx_mcs");
+@@ -309,6 +313,11 @@
+ 			lua_setfield(L, -2, rx ? "rx_he_dcm" : "tx_he_dcm");
+ 		}
+ 
++		if (r->is_eht) {
++			lua_pushnumber(L, r->eht_gi);
++			lua_setfield(L, -2, rx ? "rx_eht_gi" : "tx_eht_gi");
++		}
++
+ 		if (r->is_vht) {
+ 			lua_pushboolean(L, r->is_short_gi);
+ 			lua_setfield(L, -2, rx ? "rx_short_gi" : "tx_short_gi");
+@@ -557,6 +566,9 @@
+ 		lua_pushboolean(L, hwmodes & IWINFO_80211_AH);
+ 		lua_setfield(L, -2, "ah");
+ 
++		lua_pushboolean(L, hwmodes & IWINFO_80211_BE);
++		lua_setfield(L, -2, "be");
++
+ 		return 1;
+ 	}
+ 
+diff -uNr a/iwinfo_nl80211.c b/iwinfo_nl80211.c
+--- a/iwinfo_nl80211.c	2023-05-10 18:46:05.000000000 +0800
++++ b/iwinfo_nl80211.c	2024-10-14 14:55:55.000000000 +0800
+@@ -367,7 +367,7 @@
+ 	if (!opt)
+ 		return -1;
+ 
+-	snprintf(buf, sizeof(buf), "/sys/class/ieee80211/*");	/**/
++	snprintf(buf, sizeof(buf), "/sys/class/ieee80211/*");
+ 	if (glob(buf, 0, NULL, &gl))
+ 		return -1;
+ 
+@@ -745,6 +745,20 @@
+ 	return 0;
+ }
+ 
++static uint8_t nl80211_freq2band(int freq)
++{
++	if (freq >= 2412 && freq <= 2484)
++		return IWINFO_BAND_24;
++	else if (freq >= 5160 && freq <= 5885)
++		return IWINFO_BAND_5;
++	else if (freq >= 5925 && freq <= 7125)
++		return IWINFO_BAND_6;
++	else if (freq >= 58320 && freq <= 69120)
++		return IWINFO_BAND_60;
++
++	return 0;
++}
++
+ static int nl80211_phyname_cb(struct nl_msg *msg, void *arg)
+ {
+ 	char *buf = arg;
+@@ -796,14 +810,14 @@
+ 
+ static char * nl80211_phy2ifname(const char *ifname)
+ {
+-	int ifidx = -1, cifidx = -1, phyidx = -1;
++	int ifidx = -1, cifidx, lmode = 1, clmode, phyidx;
+ 	char buffer[512];
+ 	static char nif[IFNAMSIZ] = { 0 };
+ 
+ 	DIR *d;
+ 	struct dirent *e;
+ 
+-	/* Only accept phy name of the form phy%d or radio%d */
++	/* Only accept phy name in the form of phy%d or radio%d */
+ 	if (!ifname)
+ 		return NULL;
+ 
+@@ -815,31 +829,36 @@
+ 
+ 	memset(nif, 0, sizeof(nif));
+ 
+-	if (phyidx > -1)
++	if ((d = opendir("/sys/class/net")) != NULL)
+ 	{
+-		if ((d = opendir("/sys/class/net")) != NULL)
++		while ((e = readdir(d)) != NULL)
+ 		{
+-			while ((e = readdir(d)) != NULL)
+-			{
+-				snprintf(buffer, sizeof(buffer),
+-				         "/sys/class/net/%s/phy80211/index", e->d_name);
++			snprintf(buffer, sizeof(buffer),
++			         "/sys/class/net/%s/phy80211/index", e->d_name);
++			if (nl80211_readint(buffer) != phyidx)
++				continue;
+ 
+-				if (nl80211_readint(buffer) == phyidx)
+-				{
+-					snprintf(buffer, sizeof(buffer),
+-					         "/sys/class/net/%s/ifindex", e->d_name);
++			snprintf(buffer, sizeof(buffer),
++			         "/sys/class/net/%s/ifindex", e->d_name);
++			cifidx = nl80211_readint(buffer);
+ 
+-					if ((cifidx = nl80211_readint(buffer)) >= 0 &&
+-					    ((ifidx < 0) || (cifidx < ifidx)))
+-					{
+-						ifidx = cifidx;
+-						strncpy(nif, e->d_name, sizeof(nif) - 1);
+-					}
+-				}
+-			}
++			if (cifidx < 0)
++				continue;
+ 
+-			closedir(d);
++			snprintf(buffer, sizeof(buffer),
++			         "/sys/class/net/%s/link_mode", e->d_name);
++			clmode = nl80211_readint(buffer);
++
++			/* prefer non-supplicant-based devices */
++			if ((ifidx < 0) || (cifidx < ifidx) || ((lmode == 1) && (clmode != 1)))
++			{
++				ifidx = cifidx;
++				lmode = clmode;
++				strncpy(nif, e->d_name, sizeof(nif) - 1);
++			}
+ 		}
++
++		closedir(d);
+ 	}
+ 
+ 	return nif[0] ? nif : NULL;
+@@ -1234,7 +1253,7 @@
+ 	struct nlattr **tb = nl80211_parse(msg);
+ 	struct nlattr *bss[NL80211_BSS_MAX + 1];
+ 
+-	static struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
++	static const struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
+ 		[NL80211_BSS_INFORMATION_ELEMENTS] = { 0 },
+ 		[NL80211_BSS_STATUS]               = { .type = NLA_U32 },
+ 	};
+@@ -1316,16 +1335,15 @@
+ 
+ 	res = nl80211_phy2ifname(ifname);
+ 
+-	/* try to find bssid from scan dump results (for AP, this fails 
+-	 * and it goes to NL80211_CMD_GET_INTERFACE)*/
+-	nl80211_request(res ? res : ifname,
+-					NL80211_CMD_GET_SCAN, NLM_F_DUMP,
+-					nl80211_get_ssid_bssid_cb, &sb);
++	/* try to obtain mac address via NL80211_CMD_GET_INTERFACE */
++	nl80211_request(res ? res : ifname, NL80211_CMD_GET_INTERFACE, 0,
++	                nl80211_get_macaddr_cb, &sb);
+ 
+-	/* failed,  try to obtain mac address via NL80211_CMD_GET_INTERFACE */
++	/* failed, try to find bssid from scan dump results */
+ 	if (sb.bssid[0] == 0)
+-		nl80211_request(res ? res : ifname, NL80211_CMD_GET_INTERFACE, 0,
+-						nl80211_get_macaddr_cb, &sb);
++		nl80211_request(res ? res : ifname,
++		                NL80211_CMD_GET_SCAN, NLM_F_DUMP,
++		                nl80211_get_ssid_bssid_cb, &sb);
+ 
+ 	/* failed, try to find mac from hostapd info */
+ 	if ((sb.bssid[0] == 0) &&
+@@ -1359,7 +1377,7 @@
+ 	struct nlattr **attr = nl80211_parse(msg);
+ 	struct nlattr *binfo[NL80211_BSS_MAX + 1];
+ 
+-	static struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
++	static const struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
+ 		[NL80211_BSS_FREQUENCY] = { .type = NLA_U32 },
+ 		[NL80211_BSS_STATUS]    = { .type = NLA_U32 },
+ 	};
+@@ -1536,10 +1554,12 @@
+ 	struct nlattr *sinfo[NL80211_STA_INFO_MAX + 1];
+ 	struct nlattr *rinfo[NL80211_RATE_INFO_MAX + 1];
+ 
+-	static struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
++	static const struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
+ 		[NL80211_STA_INFO_INACTIVE_TIME] = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_RX_BYTES]      = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_TX_BYTES]      = { .type = NLA_U32    },
++		[NL80211_STA_INFO_RX_BYTES64]    = { .type = NLA_U64    },
++		[NL80211_STA_INFO_TX_BYTES64]    = { .type = NLA_U64    },
+ 		[NL80211_STA_INFO_RX_PACKETS]    = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_TX_PACKETS]    = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_SIGNAL]        = { .type = NLA_U8     },
+@@ -1549,7 +1569,7 @@
+ 		[NL80211_STA_INFO_PLINK_STATE]   = { .type = NLA_U8     },
+ 	};
+ 
+-	static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
++	static const struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
+ 		[NL80211_RATE_INFO_BITRATE]      = { .type = NLA_U16  },
+ 		[NL80211_RATE_INFO_MCS]          = { .type = NLA_U8   },
+ 		[NL80211_RATE_INFO_40_MHZ_WIDTH] = { .type = NLA_FLAG },
+@@ -1648,7 +1668,7 @@
+ 	struct nlattr **tb = nl80211_parse(msg);
+ 	struct nlattr *si[NL80211_SURVEY_INFO_MAX + 1];
+ 
+-	static struct nla_policy sp[NL80211_SURVEY_INFO_MAX + 1] = {
++	static const struct nla_policy sp[NL80211_SURVEY_INFO_MAX + 1] = {
+ 		[NL80211_SURVEY_INFO_FREQUENCY] = { .type = NLA_U32 },
+ 		[NL80211_SURVEY_INFO_NOISE]     = { .type = NLA_U8  },
+ 	};
+@@ -1746,7 +1766,7 @@
+ 	return 0;
+ }
+ 
+-static struct {
++static const struct {
+ 	const char *match;
+ 	int version;
+ 	int suite;
+@@ -1803,7 +1823,7 @@
+ 	}
+ }
+ 
+-static struct {
++static const struct {
+ 	const char *match;
+ 	int cipher;
+ } wpa_cipher_strings[] = {
+@@ -2031,7 +2051,17 @@
+ 	else if (ri[NL80211_RATE_INFO_BITRATE])
+ 		re->rate = nla_get_u16(ri[NL80211_RATE_INFO_BITRATE]) * 100;
+ 
+-	if (ri[NL80211_RATE_INFO_HE_MCS])
++	if (ri[NL80211_RATE_INFO_EHT_MCS])
++	{
++		re->is_eht = 1;
++		re->mcs = nla_get_u8(ri[NL80211_RATE_INFO_EHT_MCS]);
++
++		if (ri[NL80211_RATE_INFO_EHT_NSS])
++			re->nss = nla_get_u8(ri[NL80211_RATE_INFO_EHT_NSS]);
++		if (ri[NL80211_RATE_INFO_EHT_GI])
++			re->eht_gi = nla_get_u8(ri[NL80211_RATE_INFO_EHT_GI]);
++	}
++	else if (ri[NL80211_RATE_INFO_HE_MCS])
+ 	{
+ 		re->is_he = 1;
+ 		re->mcs = nla_get_u8(ri[NL80211_RATE_INFO_HE_MCS]);
+@@ -2068,6 +2098,8 @@
+ 	else if (ri[NL80211_RATE_INFO_80P80_MHZ_WIDTH] ||
+ 	         ri[NL80211_RATE_INFO_160_MHZ_WIDTH])
+ 		re->mhz = 160;
++	else if (ri[NL80211_RATE_INFO_320_MHZ_WIDTH])
++		re->mhz_hi = 320 / 256, re->mhz = 320 % 256;
+ 	else
+ 		re->mhz = 20;
+ 
+@@ -2085,7 +2117,7 @@
+ 	struct nlattr *sinfo[NL80211_SURVEY_INFO_MAX + 1];
+ 	int rc;
+ 
+-	static struct nla_policy survey_policy[NL80211_SURVEY_INFO_MAX + 1] = {
++	static const struct nla_policy survey_policy[NL80211_SURVEY_INFO_MAX + 1] = {
+ 		[NL80211_SURVEY_INFO_FREQUENCY] = { .type = NLA_U32 },
+ 		[NL80211_SURVEY_INFO_NOISE]  = { .type = NLA_U8     },
+ 		[NL80211_SURVEY_INFO_TIME] = { .type = NLA_U64   },
+@@ -2190,7 +2222,7 @@
+ 	struct nlattr *rinfo[NL80211_RATE_INFO_MAX + 1];
+ 	struct nl80211_sta_flag_update *sta_flags;
+ 
+-	static struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
++	static const struct nla_policy stats_policy[NL80211_STA_INFO_MAX + 1] = {
+ 		[NL80211_STA_INFO_INACTIVE_TIME] = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_RX_PACKETS]    = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_TX_PACKETS]    = { .type = NLA_U32    },
+@@ -2200,6 +2232,8 @@
+ 		[NL80211_STA_INFO_SIGNAL_AVG]    = { .type = NLA_U8     },
+ 		[NL80211_STA_INFO_RX_BYTES]      = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_TX_BYTES]      = { .type = NLA_U32    },
++		[NL80211_STA_INFO_RX_BYTES64]    = { .type = NLA_U64    },
++		[NL80211_STA_INFO_TX_BYTES64]    = { .type = NLA_U64    },
+ 		[NL80211_STA_INFO_TX_RETRIES]    = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_TX_FAILED]     = { .type = NLA_U32    },
+ 		[NL80211_STA_INFO_CONNECTED_TIME]= { .type = NLA_U32    },
+@@ -2217,7 +2251,7 @@
+ 		[NL80211_STA_INFO_NONPEER_PM]    = { .type = NLA_U32	},
+ 	};
+ 
+-	static struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
++	static const struct nla_policy rate_policy[NL80211_RATE_INFO_MAX + 1] = {
+ 		[NL80211_RATE_INFO_BITRATE]      = { .type = NLA_U16    },
+ 		[NL80211_RATE_INFO_MCS]          = { .type = NLA_U8     },
+ 		[NL80211_RATE_INFO_40_MHZ_WIDTH] = { .type = NLA_FLAG   },
+@@ -2263,10 +2297,14 @@
+ 		                      sinfo[NL80211_STA_INFO_TX_BITRATE], rate_policy))
+ 			nl80211_parse_rateinfo(rinfo, &e->tx_rate);
+ 
+-		if (sinfo[NL80211_STA_INFO_RX_BYTES])
++		if (sinfo[NL80211_STA_INFO_RX_BYTES64])
++			e->rx_bytes = nla_get_u64(sinfo[NL80211_STA_INFO_RX_BYTES64]);
++		else if (sinfo[NL80211_STA_INFO_RX_BYTES])
+ 			e->rx_bytes = nla_get_u32(sinfo[NL80211_STA_INFO_RX_BYTES]);
+ 
+-		if (sinfo[NL80211_STA_INFO_TX_BYTES])
++		if (sinfo[NL80211_STA_INFO_TX_BYTES64])
++			e->tx_bytes = nla_get_u64(sinfo[NL80211_STA_INFO_TX_BYTES64]);
++		else if (sinfo[NL80211_STA_INFO_TX_BYTES])
+ 			e->tx_bytes = nla_get_u32(sinfo[NL80211_STA_INFO_TX_BYTES]);
+ 
+ 		if (sinfo[NL80211_STA_INFO_TX_RETRIES])
+@@ -2399,7 +2437,7 @@
+ 	struct nlattr *freqs[NL80211_FREQUENCY_ATTR_MAX + 1];
+ 	struct nlattr *band, *freq;
+ 
+-	static struct nla_policy freq_policy[NL80211_FREQUENCY_ATTR_MAX + 1] = {
++	static const struct nla_policy freq_policy[NL80211_FREQUENCY_ATTR_MAX + 1] = {
+ 		[NL80211_FREQUENCY_ATTR_FREQ]         = { .type = NLA_U32  },
+ 		[NL80211_FREQUENCY_ATTR_DISABLED]     = { .type = NLA_FLAG },
+ 		[NL80211_FREQUENCY_ATTR_PASSIVE_SCAN] = { .type = NLA_FLAG },
+@@ -2552,7 +2590,7 @@
+ 				iwinfo_parse_rsn(&e->crypto, ie + 6, ie[1] - 4,
+ 				                 IWINFO_CIPHER_TKIP, IWINFO_KMGMT_PSK);
+ 			break;
+-		case 61: /* HT oeration */
++		case 61: /* HT operation */
+ 			if (ie[1] >= 3) {
+ 				e->ht_chan_info.primary_chan = ie[2];
+ 				e->ht_chan_info.secondary_chan_off = ie[3] & 0x3;
+@@ -2585,7 +2623,7 @@
+ 	struct nlattr **tb = nl80211_parse(msg);
+ 	struct nlattr *bss[NL80211_BSS_MAX + 1];
+ 
+-	static struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
++	static const struct nla_policy bss_policy[NL80211_BSS_MAX + 1] = {
+ 		[NL80211_BSS_TSF]                  = { .type = NLA_U64 },
+ 		[NL80211_BSS_FREQUENCY]            = { .type = NLA_U32 },
+ 		[NL80211_BSS_BSSID]                = { 0 },
+@@ -2626,8 +2664,11 @@
+ 		sl->e->crypto.enabled = 1;
+ 
+ 	if (bss[NL80211_BSS_FREQUENCY])
+-		sl->e->channel = nl80211_freq2channel(nla_get_u32(
+-			bss[NL80211_BSS_FREQUENCY]));
++	{
++		sl->e->mhz = nla_get_u32(bss[NL80211_BSS_FREQUENCY]);
++		sl->e->band = nl80211_freq2band(sl->e->mhz);
++		sl->e->channel = nl80211_freq2channel(sl->e->mhz);
++	}
+ 
+ 	if (bss[NL80211_BSS_INFORMATION_ELEMENTS])
+ 		nl80211_get_scanlist_ie(bss, sl->e);
+@@ -2849,7 +2890,10 @@
+ 				e->mode = IWINFO_OPMODE_MASTER;
+ 
+ 			/* Channel */
+-			e->channel = nl80211_freq2channel(atoi(freq));
++			/* Channel */
++			e->mhz = atoi(freq);
++			e->band = nl80211_freq2band(e->mhz);
++			e->channel = nl80211_freq2channel(e->mhz);
+ 
+ 			/* Signal */
+ 			rssi = atoi(signal);
+@@ -3016,14 +3060,10 @@
+ 					    freqs[NL80211_FREQUENCY_ATTR_DISABLED])
+ 						continue;
+ 
++					e->band = nl80211_get_band(band->nla_type);
+ 					e->mhz = nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_FREQ]);
+ 					e->channel = nl80211_freq2channel(e->mhz);
+ 
+-					e->restricted = (
+-						freqs[NL80211_FREQUENCY_ATTR_NO_IR] &&
+-						!freqs[NL80211_FREQUENCY_ATTR_RADAR]
+-					) ? 1 : 0;
+-
+ 					if (freqs[NL80211_FREQUENCY_ATTR_NO_HT40_MINUS])
+ 						e->flags |= IWINFO_FREQ_NO_HT40MINUS;
+ 					if (freqs[NL80211_FREQUENCY_ATTR_NO_HT40_PLUS])
+@@ -3039,6 +3079,14 @@
+ 					if (freqs[NL80211_FREQUENCY_ATTR_NO_HE])
+ 						e->flags |= IWINFO_FREQ_NO_HE;
+ 
++					if (freqs[NL80211_FREQUENCY_ATTR_NO_IR] &&
++					    !freqs[NL80211_FREQUENCY_ATTR_RADAR])
++						e->flags |= IWINFO_FREQ_NO_IR;
++					if (freqs[NL80211_FREQUENCY_ATTR_INDOOR_ONLY])
++						e->flags |= IWINFO_FREQ_INDOOR_ONLY;
++
++					/* keep backwards compatibility */
++					e->restricted = (e->flags & IWINFO_FREQ_NO_IR) ? 1 : 0;
+ 					e++;
+ 					arr->count++;
+ 				}
+@@ -3127,6 +3175,7 @@
+ 	uint16_t nl_ht;
+ 	uint32_t nl_vht;
+ 	uint16_t he_phy_cap[6];
++	uint16_t eht_phy_cap[9];
+ };
+ 
+ static void nl80211_eval_modelist(struct nl80211_modes *m)
+@@ -3155,6 +3204,22 @@
+ 			m->ht |= IWINFO_HTMODE_HE160 | IWINFO_HTMODE_HE80_80;
+ 	}
+ 
++	if (m->eht_phy_cap[0] != 0) {
++		m->hw |= IWINFO_80211_BE;
++		m->ht |= IWINFO_HTMODE_EHT20;
++
++		if (m->he_phy_cap[0] & BIT(9))
++			m->ht |= IWINFO_HTMODE_EHT40;
++		if (m->he_phy_cap[0] & BIT(10))
++			m->ht |= IWINFO_HTMODE_EHT40 | IWINFO_HTMODE_EHT80;
++		if (m->he_phy_cap[0] & BIT(11))
++			m->ht |= IWINFO_HTMODE_EHT160;
++		if (m->he_phy_cap[0] & BIT(12))
++			m->ht |= IWINFO_HTMODE_EHT160 | IWINFO_HTMODE_EHT80_80;
++		if ((m->eht_phy_cap[0] & BIT(9)) && (m->bands & IWINFO_BAND_6))
++			m->ht |= IWINFO_HTMODE_EHT320;
++	}
++
+ 	if (m->bands & IWINFO_BAND_24)
+ 	{
+ 		m->hw |= IWINFO_80211_B;
+@@ -3224,6 +3289,8 @@
+ 				nla_for_each_nested(nl_iftype, bands[NL80211_BAND_ATTR_IFTYPE_DATA], rem_band) {
+ 					nla_parse(tb, NL80211_BAND_IFTYPE_ATTR_MAX,
+ 						  nla_data(nl_iftype), nla_len(nl_iftype), NULL);
++
++					//HE
+ 					if (tb[NL80211_BAND_IFTYPE_ATTR_HE_CAP_PHY]) {
+ 						len = nla_len(tb[NL80211_BAND_IFTYPE_ATTR_HE_CAP_PHY]);
+ 
+@@ -3233,6 +3300,17 @@
+ 							nla_data(tb[NL80211_BAND_IFTYPE_ATTR_HE_CAP_PHY]),
+ 							len);
+ 					}
++
++					// EHT
++					if (tb[NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PHY]) {
++						len = nla_len(tb[NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PHY]);
++
++						if (len > sizeof(m->eht_phy_cap) - 1)
++							len = sizeof(m->eht_phy_cap) - 1;
++						memcpy(&((uint8_t *)m->eht_phy_cap)[1],
++							nla_data(tb[NL80211_BAND_IFTYPE_ATTR_EHT_CAP_PHY]),
++							len);
++					}
+ 				}
+ 			}
+ 		}
+@@ -3297,6 +3375,7 @@
+ 	char *res, b[2] = { 0 };
+ 	int err;
+ 	bool he = false;
++	bool eht = false;
+ 
+ 	res = nl80211_phy2ifname(ifname);
+ 	*buf = 0;
+@@ -3307,14 +3386,21 @@
+ 	if (err)
+ 		return -1;
+ 
++	if (nl80211_hostapd_query(res ? res : ifname, "ieee80211be", b, sizeof(b)))
++		eht = b[0] == '1';
++
+ 	if (nl80211_hostapd_query(res ? res : ifname, "ieee80211ax", b, sizeof(b)))
+ 		he = b[0] == '1';
+-	else if (nl80211_wpactl_query(res ? res : ifname, "wifi_generation", b, sizeof(b)))
++	else if (nl80211_wpactl_query(res ? res : ifname, "wifi_generation", b, sizeof(b))){
+ 		he = b[0] == '6';
++		eht = b[0] == '7';
++	}
+ 
+ 	switch (chn.width) {
+ 	case NL80211_CHAN_WIDTH_20:
+-		if (he)
++		if (eht)
++			*buf = IWINFO_HTMODE_EHT20;
++		else if (he)
+ 			*buf = IWINFO_HTMODE_HE20;
+ 		else if (chn.mode == -1)
+ 			*buf = IWINFO_HTMODE_VHT20;
+@@ -3322,7 +3408,9 @@
+ 			*buf = IWINFO_HTMODE_HT20;
+ 		break;
+ 	case NL80211_CHAN_WIDTH_40:
+-		if (he)
++		if (eht)
++			*buf = IWINFO_HTMODE_EHT40;
++		else if (he)
+ 			*buf = IWINFO_HTMODE_HE40;
+ 		else if (chn.mode == -1)
+ 			*buf = IWINFO_HTMODE_VHT40;
+@@ -3330,23 +3418,32 @@
+ 			*buf = IWINFO_HTMODE_HT40;
+ 		break;
+ 	case NL80211_CHAN_WIDTH_80:
+-		if (he)
++		if (eht)
++			*buf = IWINFO_HTMODE_EHT80;
++		else if (he)
+ 			*buf = IWINFO_HTMODE_HE80;
+ 		else
+ 			*buf = IWINFO_HTMODE_VHT80;
+ 		break;
+ 	case NL80211_CHAN_WIDTH_80P80:
+-		if (he)
++		if (eht)
++			*buf = IWINFO_HTMODE_EHT80_80;
++		else if (he)
+ 			*buf = IWINFO_HTMODE_HE80_80;
+ 		else
+ 			*buf = IWINFO_HTMODE_VHT80_80;
+ 		break;
+ 	case NL80211_CHAN_WIDTH_160:
+-		if (he)
++		if (eht)
++			*buf = IWINFO_HTMODE_EHT160;
++		else if (he)
+ 			*buf = IWINFO_HTMODE_HE160;
+ 		else
+ 			*buf = IWINFO_HTMODE_VHT160;
+ 		break;
++	case NL80211_CHAN_WIDTH_320:
++		*buf = IWINFO_HTMODE_EHT320;
++		break;
+ 	case NL80211_CHAN_WIDTH_5:
+ 	case NL80211_CHAN_WIDTH_10:
+ 	case NL80211_CHAN_WIDTH_20_NOHT:
+@@ -3401,12 +3498,12 @@
+ 
+ 	nla_for_each_nested(comb, attr[NL80211_ATTR_INTERFACE_COMBINATIONS], comb_rem)
+ 	{
+-		static struct nla_policy iface_combination_policy[NUM_NL80211_IFACE_COMB] = {
++		static const struct nla_policy iface_combination_policy[NUM_NL80211_IFACE_COMB] = {
+ 			[NL80211_IFACE_COMB_LIMITS] = { .type = NLA_NESTED },
+ 			[NL80211_IFACE_COMB_MAXNUM] = { .type = NLA_U32 },
+ 		};
+ 		struct nlattr *tb_comb[NUM_NL80211_IFACE_COMB+1];
+-		static struct nla_policy iface_limit_policy[NUM_NL80211_IFACE_LIMIT] = {
++		static const struct nla_policy iface_limit_policy[NUM_NL80211_IFACE_LIMIT] = {
+ 			[NL80211_IFACE_LIMIT_TYPES] = { .type = NLA_NESTED },
+ 			[NL80211_IFACE_LIMIT_MAX] = { .type = NLA_U32 },
+ 		};
+@@ -3460,9 +3557,11 @@
+ 	snprintf(path, sizeof(path), "/sys/class/%s/%s/device/of_node/compatible",
+ 	         phy ? "ieee80211" : "net", phy ? phy : ifname);
+ 
+-	if (nl80211_readstr(path, compat, sizeof(compat)) <= 0)
++	if (nl80211_readstr(path, id->compatible, sizeof(id->compatible)) <= 0)
+ 		return -1;
+ 
++	memcpy(compat, id->compatible, 64);
++
+ 	if (!strcmp(compat, "qca,ar9130-wmac")) {
+ 		id->vendor_id = 0x168c;
+ 		id->device_id = 0x0029;
+@@ -3553,6 +3652,9 @@
+ 	/* Failed to obtain hardware IDs, search board config */
+ 	if (id->vendor_id == 0 && id->device_id == 0 &&
+ 	    id->subsystem_vendor_id == 0 && id->subsystem_device_id == 0)
++		/* ... first fallback to FDT ... */
++		if (nl80211_hardware_id_from_fdt(id, ifname) == -1)
++			/* ... then board config */
+ 		return iwinfo_hardware_id_from_mtd(id);
+ 
+ 	return 0;
+diff -uNr a/iwinfo_utils.c b/iwinfo_utils.c
+--- a/iwinfo_utils.c	2023-05-10 18:46:05.000000000 +0800
++++ b/iwinfo_utils.c	2024-10-14 15:06:35.000000000 +0800
+@@ -151,8 +151,8 @@
+ 
+ size_t iwinfo_format_hwmodes(int modes, char *buf, size_t len)
+ {
+-	// bit numbers as per IWINFO_80211_*:  ad ac ax  a  b  g  n
+-	const int order[IWINFO_80211_COUNT] = { 5, 4, 6, 0, 1, 2, 3 };
++	// bit numbers as per IWINFO_80211_*:  ad ac ax  a  b  ah be g  n
++	const int order[IWINFO_80211_COUNT] = { 5, 4, 6, 0, 1, 7, 8, 2, 3 };
+ 	size_t res = 0;
+ 	int i;
+ 
+@@ -216,6 +216,22 @@
+ 	return 0;
+ }
+ 
++int iwinfo_htmode_is_eht(int htmode)
++{
++	switch (htmode)
++	{
++	case IWINFO_HTMODE_EHT20:
++	case IWINFO_HTMODE_EHT40:
++	case IWINFO_HTMODE_EHT80:
++	case IWINFO_HTMODE_EHT80_80:
++	case IWINFO_HTMODE_EHT160:
++	case IWINFO_HTMODE_EHT320:
++		return 1;
++	}
++
++	return 0;
++}
++
+ int iwinfo_ifup(const char *ifname)
+ {
+ 	struct ifreq ifr;
+@@ -280,13 +296,19 @@
+ 
+ 	while (fgets(buf, sizeof(buf) - 1, db) != NULL)
+ 	{
++		if (buf[0] == '#')
++			continue;
++
+ 		memset(&e, 0, sizeof(e));
+ 
+ 		if (sscanf(buf, "%hx %hx %hx %hx %hd %hd \"%63[^\"]\" \"%63[^\"]\"",
+ 			       &e.vendor_id, &e.device_id,
+ 			       &e.subsystem_vendor_id, &e.subsystem_device_id,
+ 			       &e.txpower_offset, &e.frequency_offset,
+-			       e.vendor_name, e.device_name) < 8)
++			       e.vendor_name, e.device_name) != 8 &&
++			sscanf(buf, "\"%127[^\"]\" %hd %hd \"%63[^\"]\" \"%63[^\"]\"",
++			       e.compatible, &e.txpower_offset, &e.frequency_offset,
++			       e.vendor_name, e.device_name) != 5)
+ 			continue;
+ 
+ 		if ((e.vendor_id != 0xffff) && (e.vendor_id != id->vendor_id))
+@@ -303,6 +325,9 @@
+ 			(e.subsystem_device_id != id->subsystem_device_id))
+ 			continue;
+ 
++		if (strcmp(e.compatible, id->compatible))
++			continue;
++
+ 		rv = &e;
+ 		break;
+ 	}
