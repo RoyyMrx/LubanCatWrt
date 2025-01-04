@@ -1,0 +1,510 @@
+diff -uNr a/beacon.c b/beacon.c
+--- a/beacon.c	2024-12-31 14:24:00.340091300 +0800
++++ b/beacon.c	2024-12-25 22:22:39.000000000 +0800
+@@ -107,7 +107,7 @@
+ 	mors_if = ieee80211_vif_to_morse_vif(vif);
+ 	short_beacon = (mors_if->dtim_count != 0);
+ 
+-	beacon = ieee80211_beacon_get(mors->hw, vif);
++	beacon = ieee80211_beacon_get(mors->hw, vif, 0);
+ 	if (beacon == NULL) {
+ 		morse_err(mors, "ieee80211_beacon_get failed\n");
+ 		goto exit;
+@@ -185,7 +185,7 @@
+ 		}
+ 
+ 		/* Just say we transmitted it */
+-		ieee80211_tx_status(mors->hw, beacon);
++		ieee80211_tx_status_skb(mors->hw, beacon);
+ 		beacon = skb2;
+ 	}
+ 
+diff -uNr a/debug.c b/debug.c
+--- a/debug.c	2024-12-31 13:55:19.544476400 +0800
++++ b/debug.c	2024-12-25 22:22:40.000000000 +0800
+@@ -128,7 +128,7 @@
+ 			ieee80211_iterate_stations_atomic(mors->hw,
+ 				read_sta_vendor_info_iter, file);
+ 		} else if (vif->type == NL80211_IFTYPE_STATION &&
+-				  vif->bss_conf.assoc &&
++				  vif->cfg.assoc &&
+ 				   mors_if->bss_vendor_info.valid) {
+ 
+ 			seq_printf(file, "AP [%pM]:\n", vif->bss_conf.bssid);
+diff -uNr a/mac.c b/mac.c
+--- a/mac.c	2024-12-31 13:55:19.419052700 +0800
++++ b/mac.c	2024-12-25 22:22:40.000000000 +0800
+@@ -823,7 +823,7 @@
+ 	info->flags |= IEEE80211_TX_STAT_TX_FILTERED;
+ 	info->flags &= ~IEEE80211_TX_CTL_AMPDU;
+ 
+-	ieee80211_tx_status(mors->hw, skb);
++	ieee80211_tx_status_skb(mors->hw, skb);
+ 	return true;
+ }
+ 
+@@ -1363,7 +1363,7 @@
+ 	return 0;
+ }
+ 
+-static void morse_mac_ops_stop(struct ieee80211_hw *hw)
++static void morse_mac_ops_stop(struct ieee80211_hw *hw, bool suspend)
+ {
+ 	struct morse *mors = hw->priv;
+ 	struct morse_vif *mon_if = &mors->mon_if;
+@@ -1517,7 +1517,7 @@
+ 	morse_info(mors, "%s: chswitch timer TS=%ld\n", __func__, jiffies);
+ 
+ 	if (vif->type == NL80211_IFTYPE_AP)
+-		ieee80211_csa_finish(vif);
++		ieee80211_csa_finish(vif, 0);
+ }
+ 
+ static void morse_ecsa_chswitch_work(struct work_struct *work)
+@@ -1616,7 +1616,7 @@
+ 	for (if_idx = 0; if_idx < MORSE_MAX_IF; if_idx++) {
+ 		vif = mors->vif[if_idx];
+ 
+-		if (!vif || !vif->csa_active ||
++		if (!vif || !vif->bss_conf.csa_active ||
+ 			(vif->type != NL80211_IFTYPE_AP && vif->type != NL80211_IFTYPE_STATION))
+ 			continue;
+ 
+@@ -2249,11 +2249,11 @@
+ 	struct ieee80211_chanctx_conf *chanctx_conf;
+ 
+ 	/* Refer ieee80211_cfg_get_channel() */
+-	chanctx_conf = rcu_access_pointer(vif->chanctx_conf);
++	chanctx_conf = rcu_access_pointer(vif->bss_conf.chanctx_conf);
+ 	err = !chanctx_conf;
+ 
+ 	if (err ||
+-	    !cfg80211_chandef_identical(&vif->bss_conf.chandef,
++	    !cfg80211_chandef_identical(&vif->bss_conf.chanctx_conf->ap,//roy:or chanreq.oper
+ 					&hw->conf.chandef)) {
+ 		return -ENODATA;
+ 	}
+@@ -2268,7 +2268,7 @@
+ static void
+ morse_mac_ops_bss_info_changed(struct ieee80211_hw *hw,
+ 			struct ieee80211_vif *vif,
+-			struct ieee80211_bss_conf *info, u32 changed)
++			struct ieee80211_bss_conf *info, u64 changed)
+ {
+ 	struct morse *mors = hw->priv;
+ 	struct morse_vif *mors_if = (struct morse_vif *)vif->drv_priv;
+@@ -2278,13 +2278,13 @@
+ 
+ 	if (changed & BSS_CHANGED_BEACON)
+ 		morse_info(mors, "BSS Changed beacon data, reset flag=%d, csa_active=%d ecsa_chan_configured=%d\n",
+-				   mors_if->mask_ecsa_info_in_beacon, vif->csa_active, mors_if->ecsa_chan_configured);
++				   mors_if->mask_ecsa_info_in_beacon, vif->bss_conf.csa_active, mors_if->ecsa_chan_configured);
+ 
+ 	if (changed & BSS_CHANGED_BANDWIDTH) {
+-		morse_info(mors, "BSS Changed BW, changed=0x%x, jiffies=%ld, csa_active=%d\n",
+-				   changed, jiffies, vif->csa_active);
++		morse_info(mors, "BSS Changed BW, changed=0x%llx, jiffies=%ld, csa_active=%d\n",
++	 				changed, jiffies, vif->bss_conf.csa_active);
+ #ifdef CONFIG_MORSE_RC
+-		if (vif->csa_active && (vif->type == NL80211_IFTYPE_AP) && mors_if->ap->num_stas)
++		if (vif->bss_conf.csa_active && (vif->type == NL80211_IFTYPE_AP) && mors_if->ap->num_stas)
+ 			morse_rc_reinit_stas(mors, vif);
+ #endif
+ 	}
+@@ -2293,7 +2293,7 @@
+ 		(changed & BSS_CHANGED_SSID)) {
+ 		int ret;
+ 
+-		u32 cssid = ~crc32(~0, info->ssid, info->ssid_len);
++		u32 cssid = ~crc32(~0, info->vif->cfg.ssid, info->vif->cfg.ssid_len);
+ 
+ 		ret = morse_cmd_cfg_bss(mors, mors_if->id,
+ 			info->beacon_int, info->dtim_period, cssid);
+@@ -2339,12 +2339,12 @@
+ 		bool stop_ibss = (!vif->bss_conf.enable_beacon);
+ 
+ 		ret = morse_cmd_cfg_ibss(mors, mors_if->id,
+-					vif->bss_conf.bssid, vif->bss_conf.ibss_creator, stop_ibss);
++					vif->bss_conf.bssid, vif->cfg.ibss_creator, stop_ibss);
+ 		if (ret)
+ 			morse_err(mors, "morse_cmd_cfg_ibss fail %d\n", ret);
+ 		else
+ 			morse_info(mors, "IBSS creator: %d stop_ibss:%d\n",
+-					vif->bss_conf.ibss_creator, stop_ibss);
++					vif->cfg.ibss_creator, stop_ibss);
+ 	}
+ 
+ 	/**
+@@ -2355,7 +2355,7 @@
+ 			changed & BSS_CHANGED_ASSOC &&
+ 			bss_conf) {
+ 
+-		mors_if->is_sta_assoc = bss_conf->assoc;
++		mors_if->is_sta_assoc = vif->cfg.assoc;
+ 
+ 		/* Request for new template buffer only on new association */
+ 		if (enable_bcn_change_seq_monitor && mors_if->is_sta_assoc) {
+@@ -2382,7 +2382,7 @@
+ 			&& vif->type == NL80211_IFTYPE_STATION
+ 			&& mors_if->custom_configs->enable_arp_offload)
+ 		morse_cmd_arp_offload_update_ip_table(mors, mors_if->id,
+-				info->arp_addr_cnt, info->arp_addr_list);
++				info->vif->cfg.arp_addr_cnt, info->vif->cfg.arp_addr_list);
+ 
+ 	mutex_unlock(&mors->lock);
+ }
+@@ -2648,7 +2648,7 @@
+ 
+ static int
+ morse_mac_ops_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-		      u16 queue, const struct ieee80211_tx_queue_params *params)
++		      unsigned int link_id, u16 queue, const struct ieee80211_tx_queue_params *params)
+ {
+ 	struct morse *mors = hw->priv;
+ 	struct morse_queue_params mqp;
+@@ -2728,19 +2728,19 @@
+ 	mors_sta->max_bw_mhz = mors_vif->custom_configs->channel_info.op_bw_mhz;
+ 
+ 	/* mmrc is enabling all rates (MCS0-7 & 10) by default, assign rates to defaults */
+-	sta->ht_cap.mcs.rx_mask[0] = mcs_mask;
++	sta->deflink.ht_cap.mcs.rx_mask[0] = mcs_mask;
+ 
+ 	/* Update VHT & SGI Capabilities */
+ 	if (mors_vif->custom_configs->enable_sgi_rc) {
+-		sta->ht_cap.cap |= (IEEE80211_HT_CAP_SGI_20 | IEEE80211_HT_CAP_SGI_40);
++		sta->deflink.ht_cap.cap |= (IEEE80211_HT_CAP_SGI_20 | IEEE80211_HT_CAP_SGI_40);
+ 
+ 		if (mors_vif->custom_configs->channel_info.op_bw_mhz >= 4) {
+-			sta->vht_cap.vht_supported = true;
+-			sta->vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_80;
++			sta->deflink.vht_cap.vht_supported = true;
++			sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_80;
+ 
+ 			if (mors_vif->custom_configs->channel_info.op_bw_mhz > 4) {
+-				sta->vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_160;
+-				sta->vht_cap.cap |= IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
++				sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_160;
++				sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
+ 			}
+ 		}
+ 	}
+@@ -2784,8 +2784,8 @@
+ 	else
+ 		mors_sta->ampdu_supported = false;
+ 
+-	sta->ht_cap.ampdu_factor = (s1g_caps->capab_info[3] >> 3) & 0x3;
+-	sta->ht_cap.ampdu_density = (s1g_caps->capab_info[3] >> 5) & 0x7;
++	sta->deflink.ht_cap.ampdu_factor = (s1g_caps->capab_info[3] >> 3) & 0x3;
++	sta->deflink.ht_cap.ampdu_density = (s1g_caps->capab_info[3] >> 5) & 0x7;
+ 
+ 	mors_sta->trav_pilot_support = S1G_CAP2_GET_TRAV_PILOT(s1g_caps->capab_info[2]);
+ 
+@@ -2795,25 +2795,25 @@
+ 	mors_vif->bss_color = S1G_CAP8_GET_COLOR(s1g_caps->capab_info[8]);
+ 
+ 	/* mmrc is enabling all rates (MCS0-7 & 10) by default, assign rates to defaults */
+-	sta->ht_cap.mcs.rx_mask[0] = mcs_mask;
++	sta->deflink.ht_cap.mcs.rx_mask[0] = mcs_mask;
+ 
+ 	if (sgi_enabled && mors_vif->custom_configs->enable_sgi_rc)
+-		sta->ht_cap.cap |= (IEEE80211_HT_CAP_SGI_20 | IEEE80211_HT_CAP_SGI_40);
++		sta->deflink.ht_cap.cap |= (IEEE80211_HT_CAP_SGI_20 | IEEE80211_HT_CAP_SGI_40);
+ 
+ 	if (s1g_caps->capab_info[0] & S1G_CAP0_SGI_4MHZ)
+-		sta->ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
++		sta->deflink.ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
+ 
+ 	if (info->op_bw_mhz >= 4) {
+ 		if (sgi_enabled && mors_vif->custom_configs->enable_sgi_rc) {
+-			sta->vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_80;
++			sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_80;
+ 
+ 			if (info->op_bw_mhz > 4)
+-				sta->vht_cap.cap |=	IEEE80211_VHT_CAP_SHORT_GI_160;
++				sta->deflink.vht_cap.cap |=	IEEE80211_VHT_CAP_SHORT_GI_160;
+ 		}
+-		sta->vht_cap.vht_supported = true;
++		sta->deflink.vht_cap.vht_supported = true;
+ 
+ 		if (s1g_caps->capab_info[0] & S1G_CAP0_SGI_8MHZ)
+-			sta->vht_cap.cap |= IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
++			sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
+ 	}
+ 
+ 	rcu_read_unlock();
+@@ -2827,38 +2827,38 @@
+ 	switch (op_bw) {
+ 	case S1G_CHAN_1MHZ:
+ 		if (mors->custom_configs.enable_sgi_rc)
+-			sta->ht_cap.cap |= IEEE80211_HT_CAP_SGI_20;
+-		sta->ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_40;
+-		sta->ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
+-		sta->vht_cap.vht_supported = false;
++			sta->deflink.ht_cap.cap |= IEEE80211_HT_CAP_SGI_20;
++		sta->deflink.ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_40;
++		sta->deflink.ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
++		sta->deflink.vht_cap.vht_supported = false;
+ 		break;
+ 	case S1G_CHAN_2MHZ:
+ 		if (mors->custom_configs.enable_sgi_rc)
+-			sta->ht_cap.cap |= (IEEE80211_HT_CAP_SGI_20 | IEEE80211_HT_CAP_SGI_40);
+-		sta->ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
+-		sta->vht_cap.vht_supported = false;
++			sta->deflink.ht_cap.cap |= (IEEE80211_HT_CAP_SGI_20 | IEEE80211_HT_CAP_SGI_40);
++		sta->deflink.ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
++		sta->deflink.vht_cap.vht_supported = false;
+ 		break;
+ 	case S1G_CHAN_4MHZ:
+ 	case S1G_CHAN_8MHZ:
+ 		/* configure vht caps */
+-		sta->vht_cap.cap = IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_11454 |
++		sta->deflink.vht_cap.cap = IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_11454 |
+ 				IEEE80211_VHT_CAP_RXLDPC |
+ 				IEEE80211_VHT_CAP_TXSTBC |
+ 				IEEE80211_VHT_CAP_RXSTBC_1 |
+ 				IEEE80211_VHT_CAP_MAX_A_MPDU_LENGTH_EXPONENT_MASK;
+ 
+-		sta->vht_cap.vht_mcs.rx_mcs_map = cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_7);
+-		sta->vht_cap.vht_mcs.tx_mcs_map = cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_7);
+-		sta->vht_cap.vht_supported = true;
++		sta->deflink.vht_cap.vht_mcs.rx_mcs_map = cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_7);
++		sta->deflink.vht_cap.vht_mcs.tx_mcs_map = cpu_to_le16(IEEE80211_VHT_MCS_SUPPORT_0_7);
++		sta->deflink.vht_cap.vht_supported = true;
+ 
+ 		if (mors->custom_configs.enable_sgi_rc)
+-			sta->vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_80;
++			sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_80;
+ 		if (op_bw == S1G_CHAN_8MHZ) {
+ 			if (mors->custom_configs.enable_sgi_rc)
+-				sta->vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_160;
+-			sta->vht_cap.cap |= IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
++				sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SHORT_GI_160;
++			sta->deflink.vht_cap.cap |= IEEE80211_VHT_CAP_SUPP_CHAN_WIDTH_160MHZ;
+ 		} else
+-			sta->vht_cap.cap &= ~IEEE80211_VHT_CAP_SHORT_GI_160;
++			sta->deflink.vht_cap.cap &= ~IEEE80211_VHT_CAP_SHORT_GI_160;
+ 		break;
+ 	default:
+ 		morse_err(mors, "%s invalid op bw=%d\n", __func__,
+@@ -2971,12 +2971,12 @@
+ 	rcu_read_lock();
+ 	if (sta != NULL) {
+ 		sta->wme = true;
+-		sta->ht_cap.ht_supported = true;
++		sta->deflink.ht_cap.ht_supported = true;
+ 	}
+ 	rcu_read_unlock();
+ 
+ 	if (vif->type == NL80211_IFTYPE_STATION)
+-		aid = vif->bss_conf.aid;
++		aid = vif->cfg.aid;
+ 	else if (vif->type == NL80211_IFTYPE_ADHOC)
+ 		/* SW-4741: in IBSS mode, AID is always zero, and we can not use
+ 		 * it as a unique ID. As a WAR, we overload the AID with the MAC
+@@ -3166,7 +3166,7 @@
+ 	}
+ 
+ 	if (vif->type == NL80211_IFTYPE_STATION)
+-		aid = vif->bss_conf.aid;
++		aid = vif->cfg.aid;
+ 	else if (vif->type == NL80211_IFTYPE_ADHOC)
+ 		/* SW-4741: in IBSS mode, AID is always zero, and we can not use
+ 		 * it as a unique ID. As a WAR, we overload the AID with the MAC
+@@ -3244,7 +3244,7 @@
+ 	mutex_lock(&mors->lock);
+ 
+ 	if (vif->type == NL80211_IFTYPE_STATION) {
+-		aid = vif->bss_conf.aid;
++		aid = vif->cfg.aid;
+ 	} else if (vif->type == NL80211_IFTYPE_ADHOC) {
+ 		/* SW-4741: in IBSS mode, AID is always zero, and we can not use
+ 		 * it as a unique ID. As a WAR, we overload the AID with the MAC
+@@ -3421,7 +3421,7 @@
+ {
+ 	struct morse *mors = hw->priv;
+ 	const struct morse_dot11ah_channel *chan_s1g =
+-		morse_dot11ah_channel_chandef_to_s1g(&vif->bss_conf.chandef);
++		morse_dot11ah_channel_chandef_to_s1g(&vif->bss_conf.chanctx_conf->ap);
+ 	struct morse_vif *mors_vif = (struct morse_vif *)vif->drv_priv;
+ 	u8 bssid[ETH_ALEN], fc_bss_bw_subfield = 0;
+ 
+@@ -3441,20 +3441,20 @@
+ 		" * S1G Channel    : Ch %d, Freq %dKHz, Width %dMHz\n"
+ 		" * Regulatory     : %s\n"
+ 		" * IBSS Creator?  : %s\n",
+-		vif->bss_conf.ssid,
++		vif->cfg.ssid,
+ 		vif->bss_conf.bssid,
+ 		vif->addr,
+-		vif->bss_conf.chandef.chan->hw_value,
+-		vif->bss_conf.chandef.chan->center_freq,
++		vif->bss_conf.chanctx_conf->ap.chan->hw_value,
++		vif->bss_conf.chanctx_conf->ap.chan->center_freq,
+ 		chan_s1g ? chan_s1g->ch.hw_value : -1,
+ 		chan_s1g ? ieee80211_channel_to_khz(&chan_s1g->ch) : -1,
+ 		op_bw_mhz,
+ 		morse_dot11ah_get_region_str(),
+-		vif->bss_conf.ibss_creator ? "Yes" : "No");
++		vif->cfg.ibss_creator ? "Yes" : "No");
+ 
+ 
+ 	/* Update channel only if it is not ibss creator*/
+-	if (vif->bss_conf.ibss_creator == false) {
++	if (vif->cfg.ibss_creator == false) {
+ 		u32 changed = 0;
+ 
+ 		/* mac80211 updating bssid after configuring the channel(morse_mac_ops_config) to driver.
+@@ -3688,7 +3688,7 @@
+ 	info = IEEE80211_SKB_CB(skb);
+ 	info->control.vif = vif;
+ 	info->flags |= IEEE80211_TX_STAT_TX_FILTERED;
+-	ieee80211_tx_status(mors->hw, skb);
++	ieee80211_tx_status_skb(mors->hw, skb);
+ 
+ 	return 0;
+ 
+@@ -3939,9 +3939,9 @@
+ 		return;
+ 
+ 	mors_if = (struct morse_vif *)vif->drv_priv;
+-	if (vif->csa_active && ieee80211_is_s1g_beacon(hdr->frame_control)) {
++	if (vif->bss_conf.csa_active && ieee80211_is_s1g_beacon(hdr->frame_control)) {
+ #if KERNEL_VERSION(5, 10, 0) < MAC80211_VERSION_CODE
+-		if (ieee80211_beacon_cntdwn_is_complete(vif)) {
++		if (ieee80211_beacon_cntdwn_is_complete(vif, 0)) {
+ #else
+ 		if (ieee80211_csa_is_complete(vif)) {
+ #endif
+@@ -4066,7 +4066,7 @@
+ 	if (!short_beacon && ies_mask->ies[WLAN_EID_EXT_CHANSWITCH_ANN].ptr)
+ 		morse_mac_process_ecsa_ie(mors, vif, skb);
+ 
+-	if (vif->csa_active && mors_if->ecsa_chan_configured) {
++	if (vif->bss_conf.csa_active && mors_if->ecsa_chan_configured) {
+ 		/*
+ 		 * We will configure channel again after receiving beacon in new channel
+ 		 * to perform PHY calibration. This change is not required once the periodic
+diff -uNr a/mmrc-submodule/src/core/mmrc_osal.c b/mmrc-submodule/src/core/mmrc_osal.c
+--- a/mmrc-submodule/src/core/mmrc_osal.c	2024-12-31 13:55:19.155317600 +0800
++++ b/mmrc-submodule/src/core/mmrc_osal.c	2024-12-25 22:22:40.000000000 +0800
+@@ -9,7 +9,7 @@
+ void osal_mmrc_seed_random(void)
+ {
+ #ifdef CONFIG_MORSE_RC
+-	prandom_seed(jiffies);
++	//prandom_seed(jiffies);
+ #else
+ 	srand(time(NULL));
+ #endif
+@@ -18,7 +18,8 @@
+ uint32_t osal_mmrc_random_u32(void)
+ {
+ #ifdef CONFIG_MORSE_RC
+-	return prandom_u32();
++	//return prandom_u32();
++	return 0;
+ #else
+ 	return rand();
+ #endif
+diff -uNr a/monitor.c b/monitor.c
+--- a/monitor.c	2024-12-31 13:55:19.183516900 +0800
++++ b/monitor.c	2024-12-25 22:22:40.000000000 +0800
+@@ -93,8 +93,10 @@
+ 	ether_setup(dev);
+ 	dev->priv_flags |= IFF_NO_QUEUE;
+ 	dev->type = ARPHRD_IEEE80211_RADIOTAP;
+-	eth_zero_addr(dev->dev_addr);
+-	dev->dev_addr[0] = 0x12;
++ 	//later fix the err on build ,roy:24.11.6
++ 	// eth_zero_addr(dev->dev_addr);
++ 	// dev->dev_addr[0] = 0x12;
++
+ }
+ 
+ /* Convers an integer bandwidth (in MHz) to an S1G radiotap header bandwidth */
+diff -uNr a/rc.c b/rc.c
+--- a/rc.c	2024-12-31 13:55:19.356510400 +0800
++++ b/rc.c	2024-12-25 22:22:40.000000000 +0800
+@@ -128,32 +128,32 @@
+ 				struct ieee80211_sta *sta,
+ 				struct mmrc_sta_capabilities *caps)
+ {
+-	if (sta->ht_cap.ht_supported) {
++	if (sta->deflink.ht_cap.ht_supported) {
+ 		if (caps->bandwidth & MMRC_MASK(MMRC_BW_1MHZ)) {
+ 			caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_1MHZ, MMRC_GUARD_LONG);
+-			if (enable_sgi_rc && (sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_20))
++			if (enable_sgi_rc && (sta->deflink.ht_cap.cap & IEEE80211_HT_CAP_SGI_20))
+ 				caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_1MHZ, MMRC_GUARD_SHORT);
+ 		}
+ 
+ 		if (caps->bandwidth & MMRC_MASK(MMRC_BW_2MHZ)) {
+ 			caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_2MHZ, MMRC_GUARD_LONG);
+-			if (enable_sgi_rc && (sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_40))
++			if (enable_sgi_rc && (sta->deflink.ht_cap.cap & IEEE80211_HT_CAP_SGI_40))
+ 				caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_2MHZ, MMRC_GUARD_SHORT);
+ 		}
+ 	}
+ 
+-	if (sta->vht_cap.vht_supported) {
++	if (sta->deflink.vht_cap.vht_supported) {
+ 		if (caps->bandwidth & MMRC_MASK(MMRC_BW_4MHZ)) {
+ 			caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_4MHZ, MMRC_GUARD_LONG);
+ 			if (enable_sgi_rc &&
+-					(sta->vht_cap.cap & IEEE80211_VHT_CAP_SHORT_GI_80))
++					(sta->deflink.vht_cap.cap & IEEE80211_VHT_CAP_SHORT_GI_80))
+ 				caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_4MHZ, MMRC_GUARD_SHORT);
+ 		}
+ 
+ 		if (caps->bandwidth & MMRC_MASK(MMRC_BW_8MHZ)) {
+ 			caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_8MHZ, MMRC_GUARD_LONG);
+ 			if (enable_sgi_rc &&
+-					(sta->vht_cap.cap & IEEE80211_VHT_CAP_SHORT_GI_160))
++					(sta->deflink.vht_cap.cap & IEEE80211_VHT_CAP_SHORT_GI_160))
+ 				caps->guard_per_bw |= GUARD_PER_BW(MMRC_BW_8MHZ, MMRC_GUARD_SHORT);
+ 		}
+ 	}
+@@ -540,7 +540,7 @@
+ 	}
+ 
+ 	rcu_read_unlock();
+-	ieee80211_tx_status(mors->hw, skb);
++	ieee80211_tx_status_skb(mors->hw, skb);
+ }
+ 
+ void morse_rc_sta_state_check(struct morse *mors, struct ieee80211_sta *sta,
+diff -uNr a/sdio.c b/sdio.c
+--- a/sdio.c	2024-12-31 13:55:19.591795900 +0800
++++ b/sdio.c	2024-12-25 22:22:40.000000000 +0800
+@@ -598,7 +598,7 @@
+ 
+ 	sdio_claim_host(func);
+ 	sdio_disable_func(func);
+-	mmc_hw_reset(func->card->host);
++	mmc_hw_reset(card);
+ 	sdio_enable_func(func);
+ 	sdio_release_host(func);
+ 
+diff -uNr a/uaccess.c b/uaccess.c
+--- a/uaccess.c	2024-12-31 13:55:19.481984800 +0800
++++ b/uaccess.c	2024-12-25 22:22:40.000000000 +0800
+@@ -321,7 +321,7 @@
+ 	pr_info("uaccess char driver major number is %d\n", uaccess_major);
+ 
+ 	/*  prepare create /dev/... instance */
+-	uaccess->drv_class = class_create(THIS_MODULE, MORSE_DEV_NAME);
++	uaccess->drv_class = class_create(MORSE_DEV_NAME);
+ 	if (IS_ERR(uaccess->drv_class)) {
+ 		ret = -ENOMEM;
+ 		morse_pr_err(MORSE_DEV_NAME " class_create failed\n");
+diff -uNr a/wiphy.c b/wiphy.c
+--- a/wiphy.c	2024-12-31 13:55:19.560494800 +0800
++++ b/wiphy.c	2024-12-25 22:22:40.000000000 +0800
+@@ -6,6 +6,7 @@
+ #include <linux/slab.h>
+ #include <linux/jiffies.h>
+ #include <linux/crc32.h>
++#include <linux/rtnetlink.h>
+ #include <net/mac80211.h>
+ #include <asm/div64.h>
+ 
