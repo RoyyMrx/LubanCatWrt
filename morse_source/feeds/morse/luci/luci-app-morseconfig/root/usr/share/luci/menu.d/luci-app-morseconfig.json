@@ -1,0 +1,91 @@
+{
+    "admin/help/": {
+        "title": "Help",
+        "order": 998,
+
+        "action": {
+            "type": "firstchild"
+        }
+    },
+
+    "admin/help/guide": {
+        "title": "User Guide",
+        "order": 1,
+        "action": {
+            "type": "view",
+            "path": "morse/morseguide"
+        }
+    },
+
+    "admin/help/regulatoryinfo": {
+        "title": "Regulatory information",
+        "order": 2,
+        "action": {
+            "type": "view",
+            "path": "morse/morseregulatoryinfo"
+        },
+        "depends": {
+            "acl": [ "luci-app-morseconfig" ]
+        }
+    },
+
+    "admin/morse/": {
+        "title": "Morse",
+        "order": 30,
+
+        "action": {
+            "type": "firstchild"
+        },
+        "depends": {
+            "acl": [ "luci-app-morseconfig" ]
+        }
+    },
+
+    "admin/morse/morsestats": {
+        "title": "Statistics",
+        "order": 1,
+        "action": {
+            "type": "alias",
+            "path": "admin/morse/morsestats/logs"
+        },
+        "depends": {
+          "acl": [ "luci-app-morseconfig" ]
+        }
+    },
+  
+    "admin/morse/morsestats/logs": {
+        "title": "Logs",
+        "order": 1,
+        "action": {
+            "type": "view",
+            "path": "morse/morsestats"
+        }
+    },
+  
+    "admin/morse/morsewizard": {
+        "title": "HaLow Configuration",
+        "order": 2,
+        "action": {
+            "type": "view",
+            "path": "morse/morsewizard"
+        }
+    },
+
+    "admin/morse/shell": {
+        "title": "Shell",
+        "order": 100,
+        "action": {
+            "type": "view",
+            "path": "morse/shell"
+        }
+    },
+
+    "admin/morse/support": {
+        "title": "Support",
+        "order": 101,
+        "action": {
+            "type": "view",
+            "path": "morse/support"
+        }
+    }
+}

@@ -1,0 +1,23 @@
+#!/bin/sh 
+
+[ "$(uci -q get rpcd.dongle-login.username)" = "dongle" ] && exit 0
+
+# The password below is not intended to be secure, and by virtue of the 
+# currently insecure nature of the json-rpc requests - with no 
+# certificate auth, password being passed in plaintext and so on -
+# it doesn't necessarily make sense at this stage anyway.
+# The security is enforced by the acl config in 
+# /usr/share/rpcd/acl.d/dongle.json which enforces which files can be
+# read, which ubus calls can be made, and which uci configs can be modified
+#
+uci -q batch << "EOF"
+    add rpcd login
+    rename rpcd.@login[-1]="dongle"
+    set rpcd.dongle.username="dongle"
+    set rpcd.dongle.password="$1$$0Lzt6BZfpOGEsP9clYjUd/"
+    add_list rpcd.dongle.read="dongle"
+    add_list rpcd.dongle.write="dongle"
+    set rpcd.data='defaults'
+    set rpcd.data.defaults_applied='1'
+    commit rpcd
+EOF

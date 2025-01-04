@@ -1,0 +1,218 @@
+variables:
+  CI_DESIGNATED_BRANCH: prplwrt-19.07
+  CI_SDK_PIPELINE_SOURCE: parent_pipeline
+
+include:
+  - remote: https://gitlab.com/prpl-foundation/prplOs/prplos/-/raw/prplwrt-19.07/.gitlab/sdk.yml
+
+.expensive_job_rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DESIGNATED_BRANCH
+
+generate full:
+  rules:
+    - !reference [.expensive_job_rules, rules]
+  extends: .generate
+
+generate:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+  extends: .generate
+  variables:
+    CI_SDK_TARGETS: |
+      ipq40xx-generic
+
+.generate:
+  extends: .generate SDK package build jobs
+  variables:
+    CI_SDK_TARGETS: |
+      intel_mips-xrx500
+      ath79-generic-19.07.7
+      mvebu-cortexa9
+      ipq40xx-generic
+    CI_SDK_BUILD_PACKAGES: |
+      acl-manager
+      amx-fcgi
+      amxb-inspect
+      amx-cli
+      amxo-cg
+      amxrt
+      c-ares1
+      cthulhu
+      cthulhu-lxc
+      debug-information
+      deviceinfo-manager
+      dhcpv4-manager
+      dhcpv6s-manager
+      ethernet-manager
+      fcgi
+      gmap-client
+      gmap-mibs-common
+      gmap-mod-ethernet-dev
+      gmap-mod-name-selector
+      gmap-mod-self
+      gmap-server
+      hosts-manager
+      ip-manager
+      libamxa
+      libamxb
+      libamxc
+      libamxd
+      libamxj
+      libamxm
+      libamxo
+      libamxp
+      libamxs
+      libamxt
+      libarchive
+      libcthulhu
+      libdhcpoptions
+      libfiletransfer
+      libfwinterface
+      libfwrules
+      libgmap-client
+      libimtp
+      libipat
+      libnetlink-utils
+      libnetmodel
+      libocispec
+      libpacket-interception
+      libpcp
+      libqoscommon
+      librlyeh
+      libqosmod
+      libqosmodule
+      libqosnode
+      libsahtrace
+      libtr69-engine
+      libwebsockets4
+      lua-amx
+      moca-manager
+      mod-amxb-ubus
+      mod-autosensing
+      mod-ba-cli
+      mod-dm-cli
+      mod-dmext
+      mod-dmproxy
+      mod-dmstats
+      mod-fw-amx
+      mod-fw-host
+      mod-httpaccess-lighttpd
+      mod-lua-amx
+      mod-netmodel
+      mod-pcm-svc
+      mod-qos-tc
+      mod-sahtrace
+      mod-sahtrace
+      mod-vlan-ioctl
+      mod-vlan-uci
+      mod-xpon-prpl
+      multisettings
+      netdev-plugin
+      netmodel
+      netmodel-bridge
+      netmodel-clients
+      netmodel-dhcpv4
+      netmodel-dhcpv6
+      netmodel-dslite
+      netmodel-ethernet
+      netmodel-ip
+      netmodel-iprouter
+      netmodel-logical
+      netmodel-netdev
+      netmodel-ppp
+      netmodel-radio
+      netmodel-ssid
+      netmodel-vlan
+      odl-generator
+      packet-interception
+      pcm-manager
+      rlyeh
+      routing-manager
+      ssh-server
+      syslog-ng
+      time-manager
+      timingila
+      timingila-cthulhu
+      timingila-rlyeh
+      tr069-manager
+      tr181-bridging
+      tr181-device
+      tr181-dhcpv4client
+      tr181-dhcpv6client
+      tr181-dns
+      tr181-dnssd
+      tr181-dslite
+      tr181-dynamicdns
+      tr181-firewall
+      tr181-httpaccess
+      tr181-logical
+      tr181-neighbordiscovery
+      tr181-pcp
+      tr181-ppp
+      tr181-qos
+      tr181-routeradvertisement
+      tr181-upnp
+      tr181-usermanagement
+      tr181-xpon
+      ucode
+      uriparser
+      wan-autosensing
+      wan-manager
+
+build:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  extends: .execute SDK package build jobs
+
+build full:
+  rules:
+    - !reference [.expensive_job_rules, rules]
+  stage: build
+  needs:
+    - generate full
+
+  trigger:
+    include:
+      - artifact: sdk-package-jobs.yml
+        job: generate full
+    strategy: depend
+
+.build prplmesh with SDK:
+  rules:
+    - !reference [.expensive_job_rules, rules]
+  tags:
+    - firmware-builder
+  extends: .build feed with SDK
+  variables:
+    CI_SDK_BUILD_PACKAGES: prplmesh
+
+build prplmesh with intel_mips-xrx500 SDK:
+  extends: .build prplmesh with SDK
+  variables:
+    CI_SDK_IMAGE: prpl.registry.true.cz/prpl-foundation/prplos/prplos/$CI_DESIGNATED_BRANCH/sdk-intel_mips-xrx500:latest
+    CI_SDK_INSTALL_FEEDS: base packages luci routing feed_intel
+
+build prplmesh with ipq40xx-generic SDK:
+  extends: .build prplmesh with SDK
+  rules:
+    - !reference [generate, rules]
+    - !reference [.expensive_job_rules, rules]
+  variables:
+    CI_SDK_IMAGE: prpl.registry.true.cz/prpl-foundation/prplos/prplos/$CI_DESIGNATED_BRANCH/sdk-ipq40xx-generic:latest
+
+build prplmesh with mvebu-cortexa9 SDK:
+  extends: .build prplmesh with SDK
+  variables:
+    CI_SDK_IMAGE: prpl.registry.true.cz/prpl-foundation/prplos/prplos/$CI_DESIGNATED_BRANCH/sdk-mvebu-cortexa9:latest
+
+build prplmesh with ath79-generic OpenWrt SDK:
+  rules:
+    - !reference [.expensive_job_rules, rules]
+  extends: .build feed with OpenWrt SDK
+  tags:
+    - firmware-builder
+  variables:
+    CI_SDK_IMAGE: openwrtorg/sdk:ath79-generic-19.07.7
+    CI_SDK_BUILD_PACKAGES: prplmesh

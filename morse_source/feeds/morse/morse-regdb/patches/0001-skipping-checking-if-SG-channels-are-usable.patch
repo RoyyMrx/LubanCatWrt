@@ -1,0 +1,43 @@
+From 1616c1eebab11f79e59e09699f1848715af30f93 Mon Sep 17 00:00:00 2001
+From: Takura Mapani <takura.mapani@morsemicro.com>
+Date: Tue, 30 May 2023 16:10:19 +1000
+Subject: [PATCH] skipping checking if SG channels are usable
+
+---
+ regdbconverter.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/regdbconverter.py b/regdbconverter.py
+index 883f281..b0c68b1 100755
+--- a/regdbconverter.py
++++ b/regdbconverter.py
+@@ -220,7 +220,7 @@ def _output_channels_c(channels, out_file, args):
+         out_file.write(f'    /* {", ".join(column_names)} */\n')
+         n_channels = 0
+         for channel in channels:
+-            if not channel.usable or channel.bw > 8:
++            if (not channel.usable and not channel.country_code == 'SG') or channel.bw > 8:
+                 logging.info(f'Skipping channel {channel} as it is not usable')
+                 continue
+             if not channel.usable_banff_c:
+@@ -286,7 +286,7 @@ def _output_channels_python(channels, out_file, args):
+             logging.info('Skipping %s', channel.country_code)
+             continue
+ 
+-        if not channel.usable or channel.bw > 8:
++        if (not channel.usable and not channel.country_code == 'SG') or channel.bw > 8:
+             logging.info(f'Skipping channel {channel} as it is not usable')
+             continue
+ 
+@@ -317,7 +317,7 @@ def _output_channels_csv(channels, out_file, args):
+     dw.writeheader()
+     for channel in channels:
+         # Can't safely use these channels in a normal way. Ignore.
+-        if not channel.usable or channel.bw > 8 or channel.country_code in INVALID_COUNTRY_CODES:
++        if (not channel.usable and not channel.country_code == 'SG') or channel.bw > 8 or channel.country_code in INVALID_COUNTRY_CODES:
+             logging.info(f'Skipping channel {channel} as it is not usable')
+             continue
+ 
+-- 
+2.25.1
+

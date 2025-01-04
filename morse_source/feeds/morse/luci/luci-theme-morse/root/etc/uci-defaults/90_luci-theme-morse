@@ -1,0 +1,9 @@
+#!/bin/sh
+
+mv /morse/banner /etc/banner
+
+uci set "luci.themes.Morse=/luci-static/morse"
+uci set "luci.main.mediaurlbase=/luci-static/morse"
+uci commit luci
+
+exit 0

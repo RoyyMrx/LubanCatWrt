@@ -1,0 +1,46 @@
+From d58646549c1256563af1500ace97ed8b0e98f5ed Mon Sep 17 00:00:00 2001
+From: James Haggerty <james.haggerty@morsemicro.com>
+Date: Mon, 20 Mar 2023 15:26:45 +1100
+Subject: [PATCH 2/3] APP-1124 Make webpack work properly
+
+---
+ lib/PTZDriver.ts | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+diff --git a/lib/PTZDriver.ts b/lib/PTZDriver.ts
+index 8a6729c..29feb17 100644
+--- a/lib/PTZDriver.ts
++++ b/lib/PTZDriver.ts
+@@ -221,13 +221,6 @@ class PTZDriver {
+ 
+     // Initialise specific drivers, map them onto a STREAM
+ 
+-    if (config.PTZDriver === 'tenx') {
+-      var TenxDriver = require('tenx-usb-missile-launcher-driver');
+-      this.tenx = new TenxDriver();
+-      this.tenx.open();
+-      this.supportsContinuousPTZ = true;
+-    }
+-
+     if (config.PTZDriver === 'rposascii') {
+       this.rposAscii = true;
+       this.supportsAbsolutePTZ = true;
+@@ -244,15 +237,6 @@ class PTZDriver {
+       this.supportsContinuousPTZ = true;
+       this.supportsGoToHome = true;
+     }
+-    
+-    if (config.PTZDriver === 'pelcod') {
+-      var PelcoD = require('node-pelcod');
+-      this.pelcod = new PelcoD(this.stream);
+-      this.pelcod.setAddress(parent.config.PTZCameraAddress);
+-      this.supportsContinuousPTZ = true;
+-      this.supportsGoToHome = true;
+-      this.hasFixedHomePosition = false;
+-    }
+ 
+     if (config.PTZDriver === 'visca') {
+       this.visca = true;
+-- 
+2.25.1
+

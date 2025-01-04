@@ -1,0 +1,37 @@
+From e26bf3cd36634a731e2021873655d624ddcabae9 Mon Sep 17 00:00:00 2001
+From: Kshitij Jain <kshitij.jain@morsemicro.com>
+Date: Wed, 24 May 2023 23:33:36 +0000
+Subject: [PATCH] Merged in
+ SW-9045-prplmesh-valueerror-conn-map-does-no-have-all-devices (pull request
+ #21)
+
+SW-9045 prplmesh valueerror conn map does no have all devices
+
+* finalize slave connect state after agent has reassociated
+
+* add morse guard
+
+* Merged morse-main into SW-9045-prplmesh-valueerror-conn-map-does-no-have-all-devices
+
+Approved-by: Cedric Van den Bergh
+---
+ agent/src/beerocks/slave/backhaul_manager/backhaul_manager.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/agent/src/beerocks/slave/backhaul_manager/backhaul_manager.cpp b/agent/src/beerocks/slave/backhaul_manager/backhaul_manager.cpp
+index e85298a12..677eb5627 100644
+--- a/agent/src/beerocks/slave/backhaul_manager/backhaul_manager.cpp
++++ b/agent/src/beerocks/slave/backhaul_manager/backhaul_manager.cpp
+@@ -2050,6 +2050,9 @@ bool BackhaulManager::hal_event_handler(bwl::base_wlan_hal::hal_event_ptr_t even
+                 FSM_MOVE_STATE(CONNECTED);
+             } else {
+                 FSM_MOVE_STATE(OPERATIONAL);
++#if defined(MORSE_MICRO)
++                finalize_slaves_connect_state(true);
++#endif
+             }
+         }
+     } break;
+-- 
+2.25.1
+

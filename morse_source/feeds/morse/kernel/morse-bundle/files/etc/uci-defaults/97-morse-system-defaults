@@ -1,0 +1,30 @@
+#!/bin/sh 
+
+[ "$(uci -q get system.data.defaults_applied)" = "1" ] && exit 0
+
+/etc/init.d/morse stop
+/etc/init.d/morse disable
+
+# Change hostname
+SUFFIX=`cat /sys/class/net/eth0/address | cut -d ':' -f 4,5,6 | sed 's/://g'`
+uci set system.@system[0].hostname="MorseMicro-$SUFFIX"
+uci commit system
+/etc/init.d/system reload
+
+# Create backup of configs for factory reset
+cp -r /morse/configs/ /morse/default_configs
+
+# Enable TCP-BBR
+echo net.ipv4.tcp_low_latency=1 >> /etc/sysctl.d/12-tcp-bbr.conf
+
+# change default queue discipline from fq_codel to pfifo 
+# (to fix the excessive tcp retries in iperf3)
+echo net.core.default_qdisc=pfifo >> /etc/sysctl.d/13-qdisc.conf
+
+uci set system.data='defaults'
+uci set system.data.defaults_applied='1'
+
+uci set system.morse_snapshot='morse'
+uci set system.morse_snapshot.allow_upload=0
+
+uci commit system

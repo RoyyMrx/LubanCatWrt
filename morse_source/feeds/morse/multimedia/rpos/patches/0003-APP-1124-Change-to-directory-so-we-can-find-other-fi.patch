@@ -1,0 +1,37 @@
+From a536bdb56e11d1753c654f2af6efaffef483584e Mon Sep 17 00:00:00 2001
+From: James Haggerty <james.haggerty@morsemicro.com>
+Date: Mon, 20 Mar 2023 16:36:15 +1100
+Subject: [PATCH 3/3] APP-1124 Change to directory so we can find other files
+
+procd doesn't seem to be able to set a working directory (?)
+---
+ rpos.ts | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/rpos.ts b/rpos.ts
+index 617949f..7b0e30a 100644
+--- a/rpos.ts
++++ b/rpos.ts
+@@ -25,6 +25,10 @@ THE SOFTWARE.
+ */
+ require("./lib/extension");
+ 
++import { exit, chdir } from "process";
++
++chdir(__dirname);
++
+ import http = require("http");
+ import express = require("express");
+ import fs = require('fs');
+@@ -38,8 +42,6 @@ import PTZService = require("./services/ptz_service");
+ import ImagingService = require("./services/imaging_service");
+ import DiscoveryService = require("./services/discovery_service");
+ 
+-import { exit } from "process";
+-
+ var utils = Utils.utils;
+ let pjson = require("./package.json");
+ 
+-- 
+2.25.1
+

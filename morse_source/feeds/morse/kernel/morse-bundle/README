@@ -1,0 +1,16 @@
+This package contains a number of configuration defaults and scripts
+used by the MorseMicro EVKs. It is a bit of a non-kosher package to
+centralise sometimes necessarily deployed components which don't yet
+have a formal home.
+
+Many improvements will likely be made. These could include:
+1 - bundling scripts into packages which they more closely relate. eg, 
+    chipreset.sh should be bundled with the mm61xx package.
+2 - uci default scripts, where possible, moved into board configuration
+    scripts in the OpenWrt target folder
+3 - Deploying platform specific network configuration (files/etc/config/*)
+    into the same target folder, instead of deploying within this package.
+
+An extra point to note, some configurations here may be changed by other
+packages. For example, our RD05 router dongle contains another set of UCI
+defaults to reconfigure the default state as bridged, dhcp client.

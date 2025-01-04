@@ -1,0 +1,22 @@
+diff --git a/mac.c b/mac.c
+index 31c36815..4c57ec3c 100644
+--- a/mac.c
++++ b/mac.c
+@@ -561,12 +561,14 @@ static u8 morse_mac_rx_bw_to_skb_vht(struct morse *mors, u8 rx_bw_mhz)
+ 		else
+ 			return RATE_INFO_BW_80;
+ 	case 8:
+-		if (rx_bw_mhz <= 2)
++		if (rx_bw_mhz == 1)
+ 			return RATE_INFO_BW_20;
+-		if (rx_bw_mhz == 4)
++		if (rx_bw_mhz == 2)
+ 			return RATE_INFO_BW_40;
+-		else
++		if (rx_bw_mhz == 4)
+ 			return RATE_INFO_BW_80;
++		else
++			return RATE_INFO_BW_160;
+ 	default:
+ 		return RATE_INFO_BW_80;
+ 	}

@@ -1,0 +1,23 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (C) 2021-2022 Morse Micro Pty Ltd. All rights reserved.
+#
+
+START=99
+
+
+start()
+{
+    /sbin/reset-button-watcher &> /dev/null & 
+}
+
+stop()
+{
+    killall reset-button-watcher
+}
+
+restart()
+{
+    stop
+    start 1
+}

@@ -1,0 +1,22 @@
+{
+    "admin/morse/": {
+        "title": "Morse",
+        "order": 30,
+
+        "action": {
+            "type": "firstchild"
+        }
+    },
+
+    "admin/morse/dongle": {
+        "title": "Dongle",
+        "order": 10,
+        "action": {
+            "type": "view",
+            "path": "morse/dongle/config"
+        },
+        "depends": {
+            "acl": [ "luci-app-morsedongle", "luci-lib-morseconfig" ]
+          }
+    }
+}

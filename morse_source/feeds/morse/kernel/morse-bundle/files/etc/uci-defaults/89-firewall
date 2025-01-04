@@ -1,0 +1,43 @@
+#!/bin/sh 
+
+[ "$(uci -q get firewall.data.defaults_applied)" = "1" ] && exit 0
+
+# Remove default instances
+while uci -q delete firewall.@forwarding[0]; do :; done
+while uci -q delete firewall.@zone[0]; do :; done
+
+uci set firewall.mmrouter="forwarding"
+uci set firewall.mmrouter.src="ahwlan"
+uci set firewall.mmrouter.dest="privlan"
+uci set firewall.mmrouter.enabled="0"
+
+uci set firewall.mmextender="forwarding"
+uci set firewall.mmextender.src="privlan"
+uci set firewall.mmextender.dest="ahwlan"
+uci set firewall.mmextender.enabled="0"
+
+INST="lan ahwlan privlan"
+for INST in ${INST}
+do
+# These disable the dns server
+uci set firewall.${INST}="zone"
+uci set firewall.${INST}.name="${INST}"
+uci set firewall.${INST}.network="${INST}"
+uci set firewall.${INST}.input="ACCEPT"
+uci set firewall.${INST}.output="ACCEPT"
+uci set firewall.${INST}.forward="ACCEPT"
+uci set firewall.${INST}.masq="1"
+uci set firewall.${INST}.leasetime="12h"
+
+# uci set firewall.${INST}.enabled="0"
+done
+
+uci set firewall.lan.masq="0"
+
+uci commit firewall
+
+uci set firewall.data='defaults'
+uci set firewall.data.defaults_applied='1'
+uci commit firewall
+
+/etc/init.d/firewall restart

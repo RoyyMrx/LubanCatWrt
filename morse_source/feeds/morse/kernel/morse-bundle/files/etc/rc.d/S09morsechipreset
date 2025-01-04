@@ -1,0 +1,12 @@
+#!/bin/sh /etc/rc.common
+#
+# Copyright (C) 2023 Morse Micro Pty Ltd. All rights reserved.
+#
+
+START=09
+
+
+boot() {
+	echo "Calling morse chip reset script." > /dev/kmsg
+	/morse/scripts/chipreset.sh
+}

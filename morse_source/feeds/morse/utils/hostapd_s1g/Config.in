@@ -1,0 +1,15 @@
+config MORSE_HOSTAPD_S1G_EAP
+	bool
+    depends on PACKAGE_hostapd_s1g
+	default n
+    help
+        Enable Extensible Authentication Protocol (EAP) server into hostapd_s1g
+
+config MORSE_HOSTAPD_S1G_ACS
+	bool
+    depends on PACKAGE_hostapd_s1g
+	default n
+    help 
+        This will allow hostapd to pick the channel automatically when channel is set
+        to "acs_survey" or "0". Eventually, other ACS algorithms can be added in
+        similar way.

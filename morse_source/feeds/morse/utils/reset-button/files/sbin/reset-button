@@ -1,0 +1,15 @@
+#/bin/sh
+#
+# Copyright (C) 2021-2022 Morse Micro Pty Ltd. All rights reserved.
+#
+
+
+if [ "$1" = "reboot" ]; then     
+    reboot
+elif [ "$1" = "factory" ]; then    
+    firstboot -y && reboot
+else    
+    echo "usage:"
+    echo "  reset-button reboot         does a reboot"
+    echo "  reset-button factory        does a factory reset and reboots"
+fi

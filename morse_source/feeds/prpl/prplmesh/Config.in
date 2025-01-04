@@ -1,0 +1,33 @@
+if PACKAGE_prplmesh
+
+config PRPLMESH_NBAPI
+    bool
+    default y
+    prompt "Enable use of NBAPI (Ambiorix)."
+    help
+      Enable the NBAPI (Ambiorix) for the runtime data model handling.
+
+config PRPLMESH_UNIT_TESTS
+    bool
+    default n
+    prompt "Build unit tests"
+    help
+      Build and install the unit tests.
+
+config PRPLMESH_DEBUG
+    bool
+    default n
+    prompt "Enable debug build option"
+    help
+      Enable verbose build ouput, remove compiler optimisations and use -g
+      when compiling.
+
+config PRPLMESH_STATIC_LIBRARIES
+    bool
+    default n
+    prompt "Enable static libraries (.a) for common components."
+    help
+      By default, PrplMesh components stored use dynamic libabires (.so)
+      stored in /usr/lib, which reduces storage requirements significantly,
+      but makes debug harder (especially when frequently updating the binaries).
+endif

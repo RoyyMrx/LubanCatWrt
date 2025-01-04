@@ -1,0 +1,37 @@
+From 608936f6442f8aee85d27cf6c51b1c1c85ffdfdd Mon Sep 17 00:00:00 2001
+From: Kshitij Jain <kshitij.jain@morsemicro.com>
+Date: Tue, 9 May 2023 23:31:45 +0000
+Subject: [PATCH] Merged in
+ b/SW-8935-easymesh-agent-disassociates-when-controller-restarts (pull request
+ #19)
+
+SW-8935-Easymesh agent disassociates every 20 to 30s after the controller is restarted.
+
+* check interface=value in hostapd conf if bss option not present
+
+
+Approved-by: Cedric Van den Bergh
+---
+ common/beerocks/bwl/nl80211/ap_wlan_hal_nl80211.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/common/beerocks/bwl/nl80211/ap_wlan_hal_nl80211.cpp b/common/beerocks/bwl/nl80211/ap_wlan_hal_nl80211.cpp
+index c23618866..5e5c26bb7 100644
+--- a/common/beerocks/bwl/nl80211/ap_wlan_hal_nl80211.cpp
++++ b/common/beerocks/bwl/nl80211/ap_wlan_hal_nl80211.cpp
+@@ -729,6 +729,12 @@ bool ap_wlan_hal_nl80211::update_vap_credentials(
+         // escape III
+         std::string bss   = conf.get_vap_value(vap_id, "bss"),
+                     bssid = conf.get_vap_value(vap_id, "bssid");
++#if defined(MORSE_MICRO)
++        // Check interface=value in hostapd.conf if bss value is missing.
++        if (bss.empty()) {
++            bss = conf.get_vap_value(vap_id, "interface");
++        }
++#endif
+         // check explicit bssid value only in case of Multiple BSSID support
+         if ((!bss.empty()) && bssid.empty()) {
+             LOG(ERROR) << "Failed to get BSSID for vap: " << vap_id;
+-- 
+2.25.1
+

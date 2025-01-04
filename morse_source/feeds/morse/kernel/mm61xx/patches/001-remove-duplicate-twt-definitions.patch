@@ -1,0 +1,58 @@
+--- a/dot11ah/dot11ah.h
++++ b/dot11ah/dot11ah.h
+@@ -233,55 +233,6 @@ enum trav_pilot_support {
+ #define IEEE80211AH_S1G_OPERATION_SET_PRIM_CHAN_LOC(pri_chan_loc) \
+ 	(((pri_chan_loc) << 5) & 0x20)
+ 
+-/*
+- * TWT definitions.
+- */
+-#if KERNEL_VERSION(5, 15, 0) > MAC80211_VERSION_CODE
+-#define WLAN_EID_S1G_TWT				(216)
+-
+-#define IEEE80211_TWT_CONTROL_NDP			BIT(0)
+-#define IEEE80211_TWT_CONTROL_RESP_MODE			BIT(1)
+-#define IEEE80211_TWT_CONTROL_NEG_TYPE_BROADCAST	BIT(3)
+-#define IEEE80211_TWT_CONTROL_RX_DISABLED		BIT(4)
+-#define IEEE80211_TWT_CONTROL_WAKE_DUR_UNIT		BIT(5)
+-
+-#define IEEE80211_TWT_REQTYPE_REQUEST			BIT(0)
+-#define IEEE80211_TWT_REQTYPE_SETUP_CMD			GENMASK(3, 1)
+-#define IEEE80211_TWT_REQTYPE_TRIGGER			BIT(4)
+-#define IEEE80211_TWT_REQTYPE_IMPLICIT			BIT(5)
+-#define IEEE80211_TWT_REQTYPE_FLOWTYPE			BIT(6)
+-#define IEEE80211_TWT_REQTYPE_FLOWID			GENMASK(9, 7)
+-#define IEEE80211_TWT_REQTYPE_WAKE_INT_EXP		GENMASK(14, 10)
+-#define IEEE80211_TWT_REQTYPE_PROTECTION		BIT(15)
+-
+-enum ieee80211_twt_setup_cmd {
+-	TWT_SETUP_CMD_REQUEST,
+-	TWT_SETUP_CMD_SUGGEST,
+-	TWT_SETUP_CMD_DEMAND,
+-	TWT_SETUP_CMD_GROUPING,
+-	TWT_SETUP_CMD_ACCEPT,
+-	TWT_SETUP_CMD_ALTERNATE,
+-	TWT_SETUP_CMD_DICTATE,
+-	TWT_SETUP_CMD_REJECT,
+-};
+-
+-struct ieee80211_twt_params {
+-	__le16 req_type;
+-	__le64 twt;
+-	u8 min_twt_dur;
+-	__le16 mantissa;
+-	u8 channel;
+-} __packed;
+-
+-struct ieee80211_twt_setup {
+-	u8 dialog_token;
+-	u8 element_id;
+-	u8 length;
+-	u8 control;
+-	u8 params[];
+-} __packed;
+-#endif
+-
+ #define IEEE80211_TWT_CONTROL_NEG_TYPE			BIT(2)
+ #define IEEE80211_TWT_REQTYPE_SETUP_CMD_OFFSET		(1)
+ #define IEEE80211_TWT_REQTYPE_IMPLICIT_OFFSET		(5)

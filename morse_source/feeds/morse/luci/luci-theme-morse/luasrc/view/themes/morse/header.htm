@@ -1,0 +1,88 @@
+<%
+	local sys  = require "luci.sys"
+	local util = require "luci.util"
+	local http = require "luci.http"
+	local disp = require "luci.dispatcher"
+
+	local boardinfo = util.ubus("system", "board")
+
+	local node = disp.context.dispatched
+
+	-- send as HTML5
+	http.prepare_content("text/html")
+
+	local morseDev
+
+	luci.model.uci.cursor():foreach("wireless", "wifi-device",
+		function (section)
+			if section.type == "morse" then
+				morseDev = section[".name"]
+			end
+		end
+	)
+
+	morseRegion = luci.model.uci.cursor():get("wireless", morseDev, "country");
+
+-%>
+<!DOCTYPE html>
+<html lang="<%=luci.i18n.context.lang%>">
+	<head>
+		<meta charset="utf-8">
+		<title><%=striptags( (boardinfo.hostname or "?") .. ( (node and node.title) and ' - ' .. translate(node.title) or '')) %> - LuCI</title>
+		<meta name="viewport" content="initial-scale=1.0">
+		<link rel="stylesheet" href="<%=media%>/cascade.css">
+		<link rel="stylesheet" media="only screen and (max-device-width: 854px)" href="<%=media%>/mobile.css" type="text/css" />
+		<link rel="shortcut icon" href="<%=media%>/ICON-BLACK-FULL-White-fill-32x32.png">
+		<% if node and node.css then %>
+			<link rel="stylesheet" href="<%=resource%>/<%=node.css%>">
+		<% end -%>
+		<% if css then %>
+			<style title="text/css"><%= css %></style>
+		<% end -%>
+		<script src="<%=url('admin/translations', luci.i18n.context.lang)%><%# ?v=PKG_VERSION %>"></script>
+		<script src="<%=resource%>/cbi.js"></script>
+	</head>
+
+	<body class="lang_<%=luci.i18n.context.lang%> <% if node then %><%= striptags( node.title ) %><%- end %>" data-page="<%= pcdata(table.concat(disp.context.requestpath, "-")) %>">
+		<% if not blank_page then %>
+		<header>
+			<input id="hamburger-toggle" class="hamburger hamburger-toggle" type="checkbox" />
+			<label class="hamburger hamburger-toggle-label" for="hamburger-toggle">
+				<div></div>
+				<div></div>
+				<div></div>
+			</label>
+			<a class="brand" href="/cgi-bin/luci/">
+				<img src="<%=media%>/mmlogo.png" alt="Morse Micro">
+			</a>
+			<!-- <a class="brand" href="/"><%=striptags(boardinfo.hostname or "?")%></a> //removed device name-->
+			<ul class="nav" id="topmenu"></ul>
+			<div id="indicators"></div>
+		</header>
+
+		<div id="maincontent" class="container">
+			<%- if not morseRegion then -%>
+				<div class="alert-message warning">
+					<h4><%: Region not set! %></h4>
+					<p><%: There is no region set for your morse interface. Please set your region first. %></p>
+				</div>
+			<%- end -%>
+			<%- if luci.sys.process.info("uid") == 0 and luci.sys.user.getuser("root") and not luci.sys.user.getpasswd("root") then -%>
+				<div class="alert-message warning">
+					<h4><%:No password set!%></h4>
+					<p><%:There is no password set on this router. Please configure a root password to protect the web interface.%></p>
+					<% if disp.lookup("admin/system/admin") then %>
+					  <div class="right"><a class="btn" href="<%=url("admin/system/admin")%>"><%:Go to password configuration...%></a></div>
+					<% end %>
+				</div>
+			<%- end -%>
+
+			<noscript>
+				<div class="alert-message warning">
+					<h4><%:JavaScript required!%></h4>
+					<p><%:You must enable JavaScript in your browser or LuCI will not work properly.%></p>
+				</div>
+			</noscript>
+
+			<div id="tabmenu" style="display:none"></div>
+		<% end %>

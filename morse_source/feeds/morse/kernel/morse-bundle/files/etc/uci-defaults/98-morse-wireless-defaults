@@ -1,0 +1,93 @@
+#!/bin/sh 
+
+[ "$(uci -q get wireless.data.defaults_applied)" = "1" ] && exit 0
+
+. /lib/functions.sh
+. /lib/netifd/morse/morse_utils.sh
+
+_load_morse_iface_defaults(){
+        local config="$1"
+        local radio="$2"
+        config_get radio_device "$config" device
+        echo "$radio_device"
+        [ "$radio_device" = "$radio" ] || return 1
+
+        uci set wireless."${config}".ssid="MorseMicro"
+        uci set wireless."${config}".encryption="sae"
+        uci set wireless."${config}".key="12345678"
+        uci set wireless."${config}".network="ahwlan"
+        uci set wireless."${config}".max_inactivity="300"
+        uci set wireless."${config}".dtim_period="1"
+        uci delete wireless."${config}".mode
+        uci commit wireless
+}
+
+_load_morse_defaults() {
+        local mmvendor="0x325b"
+        local config="$1"
+        config_get device_path "$config" path
+        echo "$device_path"
+        [ -f "/sys/devices/${device_path}/vendor" ] || return 1
+        local vendor=$(cat "/sys/devices/${device_path}/vendor")
+        [ "$vendor" = "$mmvendor" ] || return 1
+        echo "$config"
+        uci set wireless."${config}".type="morse"
+        uci set wireless."${config}".band="s1g"
+        uci set wireless."${config}".beacon_int="100"
+        uci set wireless."${config}".hwmode="11ah"
+        uci delete wireless."${config}".htmode
+        uci commit wireless
+
+        config_foreach _load_morse_iface_defaults wifi-iface "$config"
+        _add_prpl_ifaces "$config"
+}
+
+_add_prpl_ifaces() {
+        local radio=$1
+        [ -z "$radio" ] && return
+
+        uci set prplmesh."${radio}"='wifi-device'
+        uci set prplmesh."${radio}".hostap_iface='wlan-prpl'
+        uci set prplmesh."${radio}".sta_iface='wlan-prpl-1'
+        uci commit prplmesh
+
+        cat >> /etc/config/wireless << EOF
+config wifi-iface 'prplsta_${radio}'
+        option device '${radio}'
+        option network 'ahwlan'
+        option mode 'sta'
+        option hidden '0'
+        option disabled '1'
+        option multi_ap '1'
+        option wds '1'
+        option ifname 'wlan-prpl-1'
+
+EOF
+}
+
+_set_prpl_mac() {
+        local morse_chip_macaddr=$(morse_get_chip_macaddr)
+        local MAC_SUFFIX=
+        [ -n "$morse_chip_macaddr" ]  && \
+                MAC_SUFFIX=`echo $morse_chip_macaddr | cut -d: -f4-` || \
+                MAC_SUFFIX=`cat /sys/class/net/eth0/address | cut -d: -f4-`
+        local config="$1"
+        config_get name "$config" name
+        echo "set_prpl_mac: got network.$config.name=$name"
+        if [ "$name" = "br-prpl" ]; then
+                echo "set_prpl_mac: network.$config.macaddr=0E:BF:74:${MAC_SUFFIX}"
+                uci set network."${config}".macaddr="0E:BF:74:${MAC_SUFFIX}"
+        fi
+}
+
+config_load wireless
+
+uci delete wireless.prpl_sta
+config_foreach _load_morse_defaults wifi-device
+
+config_load network
+config_foreach _set_prpl_mac device
+
+uci set wireless.data='defaults'
+uci set wireless.data.defaults_applied='1'
+uci commit wireless

@@ -1,0 +1,119 @@
+#!/bin/sh /etc/rc.common
+
+START=90
+STOP=10
+
+USE_PROCD=1
+
+SERVICE=rpos
+
+. /lib/functions/network.sh
+
+error() {
+	logger -t "$SERVICE" "$@"
+}
+
+_json_add_string_to_list() {
+	json_add_string "" "$1"
+}
+
+start_instance() {
+	local s="$1"
+	local conffile="/var/run/$SERVICE-$s.json"
+	local camerasettingsfile="/etc/$SERVICE/$s-camerasettings.json"
+
+	# get options
+	config_get username "$s" 'username' ''
+	config_get password "$s" 'password' ''
+	config_get camera_type "$s" 'camera_type' 'picam'
+	config_get service_port "$s" 'service_port' 8081
+	config_get rtsp_port "$s" 'rtsp_port' '8554'
+	config_get rtsp_name "$s" 'rtsp_name' 'h264'
+	config_get log_level "$s" 'log_level' 3
+	config_get interface "$s" 'interface' loopback
+	config_get hardware_id "$s" 'hardware_id' ''
+
+	if [ ! -e /dev/video0 ]; then
+		error "Refusing to start $SERVICE as /dev/video0 doesn't exist"
+		return 0
+	fi
+
+	network_get_ipaddr ip "$interface"
+
+	network_is_up "$interface" && [ -n "$ip" ] || {
+		error "Deferring $SERVICE start until interface $interface becomes ready"
+		return 0
+	}
+
+	# Generate config file from options.
+	json_init
+
+	json_add_string "IpAddress" "$ip"
+	# Even though we're using an IP rather than NetworkAdapters,
+	# if NetworkAdapters is not provided rpos crashes.
+	json_add_array NetworkAdapters
+	json_close_array
+
+
+	json_add_string "CameraType" "$camera_type"
+	json_add_string "CameraSettingsFilename" "$camerasettingsfile"
+
+	json_add_int "ServicePort" "$service_port"
+	json_add_string "Username" "$username"
+	json_add_string "Password" "$password"
+
+	json_add_string "RTSPName" "$rtsp_name"
+	json_add_string "RTSPAddress" ""
+	json_add_int "RTSPPort" "$rtsp_port"
+	json_add_int "RTSPServer" 2
+
+	json_add_object "DeviceInformation"
+	json_add_string "Manufacturer" "$MANUFACTURER"
+	json_add_string "Model" "$MODEL"
+	json_add_string "FirmwareVersion" "$FW_VERSION"
+	# It's not clear from the spec what this is.
+	# I think it might be basically the 'device id', so it's not
+	# clear to me what the default should be.
+	json_add_string "HardwareId" "$hardware_id"
+	json_close_object
+
+	json_add_int "logLevel" "$log_level"
+
+	json_dump > "$conffile"
+
+	# procd stuff
+	procd_open_instance
+	procd_set_param file /etc/config/$SERVICE
+	procd_set_param command node /usr/share/rpos/main.js -- --config "$conffile"
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param respawn
+	procd_close_instance
+}
+
+start_service() {
+	. /etc/device_info
+	MANUFACTURER="${DEVICE_MANUFACTURER}"
+	if [ -n "${DEVICE_PRODUCT}" ]; then
+		MODEL="${DEVICE_PRODUCT}${DEVICE_REVISION}"
+	else
+		MODEL="$(cat /tmp/sysinfo/model)"
+		MODEL="${MODEL#$MANUFACTURER}"
+	fi
+	FW_VERSION="$(cat /etc/openwrt_version)"
+
+	config_load "$SERVICE"
+	config_foreach start_instance "$SERVICE"
+}
+
+_add_interface_trigger() {
+	config_get interface "$1" 'interface' loopback
+	procd_add_reload_interface_trigger "$interface"
+}
+
+service_triggers() {
+	procd_add_reload_trigger "$SERVICE"
+
+	config_load "$SERVICE"
+	config_foreach _add_interface_trigger "$SERVICE"
+}

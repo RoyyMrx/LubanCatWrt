@@ -1,0 +1,6 @@
+config MORSE_WPA_SUPPLICANT_S1G_MESH_NETWORKING
+	bool
+    depends on PACKAGE_wpa_supplicant_s1g
+	default n
+    help
+        Enable Mesh Networking (IEEE 802.11s)

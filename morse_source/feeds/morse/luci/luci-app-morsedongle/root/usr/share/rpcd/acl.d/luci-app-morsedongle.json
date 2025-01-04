@@ -1,0 +1,16 @@
+{
+	"luci-app-morsedongle": {
+		"description": "Grant access to tools necessary for dongle configuration",
+		"write": {
+			"ubus": {
+				"umdns": ["reload", "update", "browse"]
+			}
+		},
+		"read": {
+			"cgi-io": [ "exec" ],
+			"file": {
+				"/etc/init.d/umdns restart" : [ "exec" ]
+			}
+		}
+	}
+}

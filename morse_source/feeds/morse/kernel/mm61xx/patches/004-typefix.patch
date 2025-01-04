@@ -1,0 +1,22 @@
+diff --git a/spi.c b/spi.c
+index 5fac1d49..ac1a3e30 100644
+--- a/spi.c
++++ b/spi.c
+@@ -560,7 +560,7 @@ static int morse_spi_cmd53_read(struct morse_spi *mspi, u8 fn, u32 address, u8 *
+ 
+ 		morse_info(mors, "%s: data buffer too big, truncating: %u", __func__, data_size);
+ 	}
+-	data_size = min(data_size, (MM610X_BUF_SIZE - (cp - mspi->data)));
++	data_size = min(data_size, (u32) (MM610X_BUF_SIZE - (cp - mspi->data)));
+ 	cp += data_size;
+ 	end = cp;
+ 
+@@ -650,7 +650,7 @@ static int morse_spi_cmd53_write(struct morse_spi *mspi, u8 fn, u32 address, u8
+ 			struct morse *mors = spi_get_drvdata(spi);
+ 
+ 			morse_info(mors, "%s:%u data buffer too big (%u)",
+-				__func__, __LINE__, (cp + data_size) - mspi->data);
++				__func__, __LINE__, (u32) ((cp + data_size) - mspi->data));
+ 
+ 			return -ENOMEM;
+ 		}

@@ -1,0 +1,87 @@
+
+# nothing to do if there is already a prplmesh config:
+uci -q get prplmesh && exit 0
+
+touch /etc/config/prplmesh
+
+uci batch <<'EOF'
+set prplmesh.config='prplmesh'
+set prplmesh.config.management_mode='Multi-AP-Agent'
+set prplmesh.config.operating_mode='WDS-Repeater'
+set prplmesh.config.enable='1'
+set prplmesh.config.onboarding='0'
+set prplmesh.config.master='0'
+set prplmesh.config.gateway='0'
+set prplmesh.config.rdkb_extensions='0'
+set prplmesh.config.band_steering='0'
+set prplmesh.config.client_roaming='0'
+set prplmesh.config.dfs_reentry='0'
+set prplmesh.config.passive_mode='1'
+set prplmesh.config.wired_backhaul='1'
+set prplmesh.config.operational='0'
+set prplmesh.config.ssid='test_ssid'
+set prplmesh.config.mode_enabled='WPA2-Personal'
+set prplmesh.config.wep_key='123456789a'
+set prplmesh.config.key_passphrase='test_passphrase'
+set prplmesh.config.mem_only_psk='0'
+set prplmesh.config.backhaul_band='auto'
+set prplmesh.config.certification_mode='0'
+set prplmesh.config.stop_on_failure_attempts='1'
+
+set prplmesh.radio0='wifi-device'
+set prplmesh.radio0.hostap_iface='wlan0'
+set prplmesh.radio0.hostap_iface_steer_vaps='wlan0.0'
+set prplmesh.radio0.sta_iface='wlan0'
+set prplmesh.radio0.dcs_enable='0'
+set prplmesh.radio0.dcs_channel_pool='36-48,149-165'
+set prplmesh.radio0.dcs_interval_sec='15'
+set prplmesh.radio0.dcs_dwell_msec='40'
+set prplmesh.radio0.dcs_refresh_sec='86400'
+
+set prplmesh.radio1='wifi-device'
+set prplmesh.radio1.hostap_iface='wlan1'
+set prplmesh.radio1.hostap_iface_steer_vaps='wlan1.0'
+set prplmesh.radio1.sta_iface='wlan1'
+set prplmesh.radio1.dcs_enable='0'
+set prplmesh.radio1.dcs_channel_pool='1,6,11'
+set prplmesh.radio1.dcs_interval_sec='15'
+set prplmesh.radio1.dcs_dwell_msec='40'
+set prplmesh.radio1.dcs_refresh_sec='86400'
+
+commit prplmesh
+EOF
+
+#for RX40 platform, wlan0 and wlan2 are used instead of the defualt wlan0 and wlan1
+#sta ifaces are wlan1 and wlan3
+if grep -q GRX /tmp/sysinfo/board_name; then
+        uci set prplmesh.radio1.hostap_iface="wlan2"
+        uci set prplmesh.radio1.hostap_iface_steer_vaps="wlan2.0"
+        uci set prplmesh.radio0.sta_iface="wlan1"
+        uci set prplmesh.radio1.sta_iface="wlan3"
+        uci commit prplmesh
+fi
+
+# Use the first interface of the LAN network as the default value
+BH_IFACE="$(uci get network.lan.ifname | cut -d" " -f1)"
+if [ -z "$BH_IFACE" ] ; then
+        logger -t prplmesh -p daemon.warn "No default wired backhaul interface was set! Please set 'prplmesh.config.backhaul_wire_iface' manually."
+else
+        uci set prplmesh.config.backhaul_wire_iface="$BH_IFACE"
+        uci commit prplmesh
+fi
+
+# FIXME: the next part can be removed once prplMesh supports the same
+# MAC address for the bridge and wireless interfaces (PPM-1057).
+. /lib/functions.sh
+. /lib/netifd/wireless/mac80211.sh
+case "$(board_name)" in
+        glinet,gl-b1300)
+                export macidx=10
+                uci set network.lan.macaddr="$(mac80211_generate_mac phy0)"
+                unset macidx
+                uci commit network
+                /etc/init.d/network reload
+        ;;
+        *)
+        ;;
+esac

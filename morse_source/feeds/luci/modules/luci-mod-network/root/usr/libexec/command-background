@@ -1,0 +1,39 @@
+#!/bin/sh
+
+set -ue
+
+# See command-poll for how this works.
+# This is the bit that runs the command in the background until:
+#   - no-one is reading the output
+#   - 5 minutes is up
+
+"$@" --forceflush > "$LOGFILE" 2>&1 &
+CMD_PID=$!
+echo $$ > "$PIDFILE"
+
+# Kill if we were up too long (don't want logfile to eat all the space).
+( sleep 5m; kill "$CMD_PID" ) &
+
+# Keep track of where we're up to reading our logs.
+# 1-indexed because that's what tail -n +<n> expects.
+echo 1 > "$LOGFILE_POS"
+# Keep track of whether anyone is polling us.
+touch "$LOGFILE_READ"
+while [ -e "$LOGFILE_READ" ] && [ -d "/proc/$CMD_PID" ]; do
+    rm -f "$LOGFILE_READ"
+    sleep 2
+done
+
+for PID in $(pgrep -P $$); do
+    kill "$PID"
+done
+
+# Report that we've finished to the polling process.
+echo "$1: ended" >> "$LOGFILE"
+
+# Give polling a chance to read our logfile, as our above loop
+# might have stopped because the command did (rather than no-one reading).
+sleep 2
+
+# Now we can clean up our mess.
+rm -f "$LOGFILE" "$LOGFILE_READ" "$LOGFILE_PIPE" "$LOGFILE_POS" "$PIDFILE"

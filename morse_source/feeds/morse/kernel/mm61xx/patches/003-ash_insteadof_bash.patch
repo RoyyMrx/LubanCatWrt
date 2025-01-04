@@ -1,0 +1,26 @@
+diff --git a/debug.c b/debug.c
+index 853bfafa..29248372 100644
+--- a/debug.c
++++ b/debug.c
+@@ -861,7 +861,7 @@ int morse_coredump(struct morse *mors)
+ {
+ 	int ret = 0;
+ 	static const char *const envp[] = {"HOME=/", NULL};
+-	static const char *const argv[] = {"/bin/bash", "-c", "/usr/sbin/morse-core-dump.sh -d", NULL};
++	static const char *const argv[] = {"/bin/ash", "-c", "/usr/sbin/morse-core-dump.sh -d", NULL};
+ 
+ 	(void)morse_watchdog_pause(mors);
+ 	morse_claim_bus(mors);
+diff --git a/sdio.c b/sdio.c
+index 28457557..9e48daaf 100644
+--- a/sdio.c
++++ b/sdio.c
+@@ -536,7 +536,7 @@ static void morse_sdio_clk_freq_switch(struct morse *mors, u64 sdio_clk_hz)
+ 	static const char *const envp[] = {"HOME=/", NULL};
+ 	char cmd[128];
+ 
+-	char *const argv[] = {"/bin/bash", "-c", cmd, NULL};
++	char *const argv[] = {"/bin/ash", "-c", cmd, NULL};
+ 
+ 	if (strlen(sdio_clk_debugfs) <= MIN_STRLEN_SDIO_CLK_PATH) {
+ 		morse_dbg(mors, "SDIO clock switching not supported, Skip.\n");

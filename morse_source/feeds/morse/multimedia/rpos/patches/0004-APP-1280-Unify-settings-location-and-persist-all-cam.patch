@@ -1,0 +1,775 @@
+From cff1b23e402a87514d0491b4303c7d7eb77fb6e1 Mon Sep 17 00:00:00 2001
+From: James Haggerty <james.haggerty@morsemicro.com>
+Date: Mon, 19 Jun 2023 13:13:32 +1000
+Subject: [PATCH] APP-1280 Unify settings location and persist all camera
+ settings
+
+Previously, some camera settings were persisted in v4l2ctl.json, but
+others were not (either overwritten by subsequent actions or never
+there in the first place).
+
+This tries to make sure there's only one place we're storing
+settings, and then makes sure to save them all. The
+signal-exit package is introduced to more reliably handle
+exit cleanups, which is now more important if the user
+has just changed a setting (save runs on a 30 sec delay).
+
+Also re-introduce H264 profile handling.
+---
+ lib/camera.ts               | 229 +++++++++++++++++++++++++++---------
+ lib/utils.ts                |  24 ----
+ lib/v4l2ctl.ts              |  74 ++++-------
+ package.json                |   1 +
+ rpos.d.ts                   |   2 +
+ rpos.ts                     |   2 +-
+ services/imaging_service.ts |  13 +-
+ services/media_service.ts   |  90 +++++++-------
+ 8 files changed, 256 insertions(+), 175 deletions(-)
+
+diff --git a/lib/camera.ts b/lib/camera.ts
+index 3478978..2a3dfe9 100644
+--- a/lib/camera.ts
++++ b/lib/camera.ts
+@@ -5,6 +5,20 @@ import fs = require('fs');
+ import parser = require('body-parser');
+ import { ChildProcess, exec } from 'child_process';
+ import { v4l2ctl } from './v4l2ctl';
++import { onExit } from 'signal-exit';
++
++const DEFAULT_CAMERA_SETTINGS_FILE = './rpos-camera.json';
++const SAVE_SETTINGS_DELAY_SECS = 30;
++const H264_PROFILES = {
++  'Baseline': 0,
++  'Main': 2,
++  'High': 4,
++};
++const H264_PROFILES_FROM_VALUE = {
++  '0': 'Baseline',
++  '2': 'Main',
++  '4': 'High',
++};
+ 
+ var utils = Utils.utils;
+ 
+@@ -15,46 +29,23 @@ enum ServerState {
+ }
+ 
+ class Camera {
+-  options = {
+-    resolutions: <Resolution[]>[
+-      { Width: 640, Height: 480 },
+-      { Width: 800, Height: 600 },
+-      { Width: 1024, Height: 768 },
+-      { Width: 1280, Height: 1024 },
+-      { Width: 1280, Height: 720 },
+-      { Width: 1920, Height: 1080 }
+-    ],
+-    framerates: [2, 5, 10, 15, 25, 30],
+-    bitrates: [
+-      250,
+-      500,
+-      1000,
+-      2500,
+-      5000,
+-      7500,
+-      10000,
+-      12500,
+-      15000,
+-      17500
+-    ]
+-  }
++  resolution: Resolution = { Width: 1280, Height: 720 }
++  framerate = 25
+ 
+-  settings: CameraSettings = {
+-    gop: v4l2ctl.Controls.CodecControls.h264_i_frame_period.value,
+-    quality: v4l2ctl.Controls.CodecControls.video_bitrate_mode.value == 0 ? 1 : 0,
+-    bitrate: v4l2ctl.Controls.CodecControls.video_bitrate.value / 1000,
+-    resolution: <Resolution>{ Width: 1280, Height: 720 },
+-    framerate: 25,
+-  }
+-  
+   config: rposConfig;
+   rtspServer: ChildProcess;
+   rtspServerState: ServerState;
++  rtspServerBeforeStartHook: () => void | null;
+   webserver: any;
++  settingsFilename: string;
++  saveTimeout: ReturnType<typeof setTimeout>;
+ 
+   constructor(config: rposConfig, webserver: any) {
+     this.config = config;
++    this.saveTimeout = null;
++    this.settingsFilename = config.CameraSettingsFilename ?? DEFAULT_CAMERA_SETTINGS_FILE;
+     this.rtspServerState = ServerState.Stopped;
++    this.rtspServerBeforeStartHook = null;
+     if (this.config.RTSPServer != 0) {
+       if (this.config.CameraType == 'usbcam') {
+         if (this.config.RTSPServer != 3) {
+@@ -101,14 +92,15 @@ class Camera {
+     }
+     this.webserver = webserver;
+ 
+-    this.setupWebserver();
+     this.setupCamera();
++    this.setupWebserver();
+ 
+-    v4l2ctl.ReadControls();
+-
+-    utils.cleanup(() => {
++    onExit((code, signal) => {
+       this.stopRtsp();
+-      var stop = new Date().getTime() + 2000;
++      if (this.saveTimeout) {
++        clearInterval(this.saveTimeout);
++        this.saveSettings(true);
++      }
+     });
+ 
+     if (this.config.RTSPServer == 1 )fs.chmodSync("./bin/rtspServer", "0755");
+@@ -140,13 +132,15 @@ class Camera {
+           }
+         }
+       }
+-      v4l2ctl.ApplyControls();
++      const changed = v4l2ctl.ApplyControls();
++      if (changed) {
++        this.triggerSaveTimeout();
++      }
+       res.render('camera', {});
+     });
+   }
+ 
+   getSettingsPage(filePath, callback) {
+-    v4l2ctl.ReadControls();
+     fs.readFile(filePath, (err, content) => {
+       if (err)
+         return callback(new Error(err.message));
+@@ -193,43 +187,162 @@ class Camera {
+   }
+ 
+   setupCamera() {
++    v4l2ctl.ReadControls();
++    let settings = null;
++    try {
++      settings = JSON.parse(fs.readFileSync(this.settingsFilename).toString());
++    } catch (e) {
++      utils.log.error(`${this.settingsFilename} does not exist yet or is invalid.`);
++    }
++    if (settings?.v4l2ctl) {
++      v4l2ctl.FromJson(settings.v4l2ctl);
++      v4l2ctl.ApplyControls();
++    }
++    if (settings?.resolution) {
++      this.resolution = settings.resolution;
++    }
++    if (settings?.framerate) {
++      this.framerate = settings.framerate;
++    }
+     v4l2ctl.SetPixelFormat(v4l2ctl.Pixelformat.H264)
+     v4l2ctl.SetPriority(v4l2ctl.ProcessPriority.record);
+-    v4l2ctl.ReadFromFile();
+-    this.setSettings(this.settings);
++  }
++
++  getOptions() {
++    return {
++      resolutions: <Resolution[]>[
++        { Width: 640, Height: 480 },
++        { Width: 800, Height: 600 },
++        { Width: 1024, Height: 768 },
++        { Width: 1280, Height: 1024 },
++        { Width: 1280, Height: 720 },
++        { Width: 1920, Height: 1080 }
++      ],
++      framerate: [2, 5, 10, 15, 25, 30],
++      bitrate: [
++        250,
++        500,
++        1000,
++        2500,
++        5000,
++        7500,
++        10000,
++        12500,
++        15000,
++        17500
++      ],
++      h264Profiles: Object.keys(H264_PROFILES),
++      gop: {
++        Min: v4l2ctl.Controls.CodecControls.h264_i_frame_period.getRange().min,
++        Max: v4l2ctl.Controls.CodecControls.h264_i_frame_period.getRange().max
++      },
++      quality: {
++        Min: 0,
++        Max: 1
++      },
++    }
++  }
++
++  getSettings(): CameraSettings {
++    return {
++      gop: v4l2ctl.Controls.CodecControls.h264_i_frame_period.value,
++      resolution: this.resolution,
++      framerate: this.framerate,
++      bitrate: Math.round(v4l2ctl.Controls.CodecControls.video_bitrate.value / 1000),
++      quality: v4l2ctl.Controls.CodecControls.video_bitrate_mode.value == 0 ? 1 : 0,
++      h264Profile: H264_PROFILES_FROM_VALUE[String(v4l2ctl.Controls.CodecControls.h264_profile.value)] ?? 'Baseline',
++    };
++  }
++
++  triggerSaveTimeout() {
++    if (!this.saveTimeout) {
++      // So we don't hammer our flash when people are mutating single settings (e.g. via ONVIF),
++      // we save after a delay to bundle a few changes up.
++      utils.log.debug('Starting save timeout...');
++      this.saveTimeout = setTimeout(() => {
++        this.saveTimeout = null;
++        this.saveSettings();
++      }, SAVE_SETTINGS_DELAY_SECS * 1000);
++    }
++  }
++
++  saveSettings(sync = false) {
++    const settings = {
++      v4l2ctl: v4l2ctl.ToJson(),
++      resolution: this.resolution,
++      framerate: this.framerate,
++    };
++
++    utils.log.debug('Saving camera settings to:', this.settingsFilename);
++    if (sync) {
++      fs.writeFileSync(this.settingsFilename, JSON.stringify(settings, null, 2));
++    } else {
++      fs.writeFile(this.settingsFilename, JSON.stringify(settings, null, 2), (err) => {
++        if (err) {
++          utils.log.error(`Error saving settings: ${err}`);
++        }
++      });
++    }
+   }
+ 
+   setSettings(newsettings: CameraSettings) {
+-    const requireRestartParams = [c => c.resolution.Height, c => c.resolution.Width, c => c.framerate];
+-    const requiresRestart = requireRestartParams.some(f => f(this.settings) !== f(newsettings));
+-    Object.assign(this.settings, newsettings);
++    utils.log.debug(JSON.stringify(newsettings));
++
++    const requiresRestart = (
++      H264_PROFILES[newsettings.h264Profile] !== v4l2ctl.Controls.CodecControls.h264_profile.value
++      || newsettings.resolution.Height !== this.resolution.Height || newsettings.resolution.Width !== this.resolution.Width
++      || newsettings.framerate !== this.framerate
++    );
+ 
+     v4l2ctl.Controls.CodecControls.video_bitrate.value = newsettings.bitrate * 1000;
+     v4l2ctl.Controls.CodecControls.video_bitrate_mode.value = newsettings.quality > 0 ? 0 : 1;
+     v4l2ctl.Controls.CodecControls.h264_i_frame_period.value = newsettings.gop;
+-    v4l2ctl.ApplyControls();
++    v4l2ctl.Controls.CodecControls.h264_profile.value = H264_PROFILES[newsettings.h264Profile] ?? 4;
++    this.resolution.Height = newsettings.resolution.Height;
++    this.resolution.Width = newsettings.resolution.Width;
++    this.framerate = newsettings.framerate;
+ 
+-    if (this.config.RTSPServer === 1) {
+-      // If it's our RTSPServer, we should have sufficient access to change resolution.
+-      v4l2ctl.SetResolution(newsettings.resolution);
+-      v4l2ctl.SetFrameRate(newsettings.framerate);
++    if (v4l2ctl.GetDirtyControls().length === 0 && !requiresRestart) {
++      return;
++    }
++
++    this.triggerSaveTimeout();
++    if (requiresRestart) {
++      // Some controls don't apply if we're currently streaming via a different process
++      // (some would work if we were the same process, AFAIK), so we have to stop
++      // the rtsp server before applying them.
++      this.restartRtsp(v4l2ctl.ApplyControls);
+     } else {
+-      // If not, we need to restart the server with appropriate parameters, but make sure it's actually necessary.
+-      // It does seem to be possible to dynamically set the framerate, but since the servers in general
+-      // expect to set it...
+-      if (requiresRestart) {
+-        this.restartRtsp();
+-      }
++      v4l2ctl.ApplyControls();
+     }
+   }
+ 
+-  restartRtsp() {
++  setBrightness(val: number) {
++    v4l2ctl.Controls.UserControls.brightness.value = val;
++    if (v4l2ctl.ApplyControls()) {
++      this.triggerSaveTimeout();
++    }
++  }
++
++  getBrightness(): number {
++    return v4l2ctl.Controls.UserControls.brightness.value;
++  }
++
++  restartRtsp(beforeStartFn: () => void) {
+     utils.log.info("Restarting RTSP server");
++    // Note that putting it into the 'Restart' state means that when our server dies
++    // we know to restart it immediately (see on('exit') below).
+     this.rtspServerState = ServerState.Restart;
++    this.rtspServerBeforeStartHook = beforeStartFn;
+     this.killRtsp();
+   }
+ 
+   startRtsp() {
++    if (this.rtspServerBeforeStartHook) {
++      this.rtspServerBeforeStartHook();
++      this.rtspServerBeforeStartHook = null;
++    }
++
+     utils.log.info("Starting rtsp server");
+ 
+     if (this.config.MulticastEnabled) {
+@@ -237,11 +350,11 @@ class Camera {
+         utils.log.warn("Multicast enabled; forcing use of RTSPServer 2 (v4l2rtspserver) instead of %s", this.config.RTSPServer);
+         this.config.RTSPServer = 2;
+       }
+-      this.rtspServer = utils.spawn("v4l2rtspserver", ["-P", this.config.RTSPPort.toString(), "-u" , this.config.RTSPName.toString(), "-m", this.config.RTSPMulticastName, "-M", this.config.MulticastAddress.toString() + ":" + this.config.MulticastPort.toString(), "-W",this.settings.resolution.Width.toString(), "-H", this.settings.resolution.Height.toString(), "/dev/video0"]);
++      this.rtspServer = utils.spawn("v4l2rtspserver", ["-P", this.config.RTSPPort.toString(), "-u" , this.config.RTSPName.toString(), "-m", this.config.RTSPMulticastName, "-M", this.config.MulticastAddress.toString() + ":" + this.config.MulticastPort.toString(), "-W",this.resolution.Width.toString(), "-H", this.resolution.Height.toString(), "/dev/video0"]);
+     } else {
+       if (this.config.RTSPServer == 1) this.rtspServer = utils.spawn("./bin/rtspServer", ["/dev/video0", "2088960", this.config.RTSPPort.toString(), "0", this.config.RTSPName.toString()]);
+-      if (this.config.RTSPServer == 2) this.rtspServer = utils.spawn("v4l2rtspserver", ["-P",this.config.RTSPPort.toString(), "-u" , this.config.RTSPName.toString(),"-W",this.settings.resolution.Width.toString(),"-H",this.settings.resolution.Height.toString(),"-F",this.settings.framerate.toString(),"/dev/video0"]);
+-      if (this.config.RTSPServer == 3) this.rtspServer = utils.spawn("./python/gst-rtsp-launch.sh", ["-P",this.config.RTSPPort.toString(), "-u" , this.config.RTSPName.toString(),"-W",this.settings.resolution.Width.toString(),"-H",this.settings.resolution.Height.toString(), "-t", this.config.CameraType, "-d", (this.config.CameraDevice == "" ? "auto" : this.config.CameraDevice)]);
++      if (this.config.RTSPServer == 2) this.rtspServer = utils.spawn("v4l2rtspserver", ["-P",this.config.RTSPPort.toString(), "-u" , this.config.RTSPName.toString(),"-W",this.resolution.Width.toString(),"-H",this.resolution.Height.toString(),"-F",this.framerate.toString(),"/dev/video0"]);
++      if (this.config.RTSPServer == 3) this.rtspServer = utils.spawn("./python/gst-rtsp-launch.sh", ["-P",this.config.RTSPPort.toString(), "-u" , this.config.RTSPName.toString(),"-W",this.resolution.Width.toString(),"-H",this.resolution.Height.toString(), "-t", this.config.CameraType, "-d", (this.config.CameraDevice == "" ? "auto" : this.config.CameraDevice)]);
+     }
+ 
+     if (this.rtspServer) {
+diff --git a/lib/utils.ts b/lib/utils.ts
+index 85b9159..2f8a664 100644
+--- a/lib/utils.ts
++++ b/lib/utils.ts
+@@ -176,30 +176,6 @@ export module Utils {
+       }
+     }
+ 
+-    static cleanup(callback: () => void) {
+-      // https://stackoverflow.com/questions/14031763/doing-a-cleanup-action-just-before-node-js-exits
+-      // attach user callback to the process event emitter
+-      // if no callback, it will still exit gracefully on Ctrl-C
+-      callback = callback || (() => { });
+-
+-      // do app specific cleaning before exiting
+-      process.on('exit', () => {
+-        callback;
+-      });
+-
+-      // catch ctrl+c event and exit normally
+-      process.on('SIGINT', () => {
+-        console.log('Ctrl-C...');
+-        process.exit(2);
+-      });
+-
+-      //catch uncaught exceptions, trace, then exit normally
+-      process.on('uncaughtException', (e) => {
+-        utils.log.error('Uncaught Exception... : %s', e.stack);
+-        process.exit(99);
+-      });
+-    }
+-    
+     static uuid5(str: string) {
+       var out = crypto.createHash("sha1").update(str).digest();
+ 
+diff --git a/lib/v4l2ctl.ts b/lib/v4l2ctl.ts
+index a6eaf44..5367c82 100644
+--- a/lib/v4l2ctl.ts
++++ b/lib/v4l2ctl.ts
+@@ -1,7 +1,6 @@
+ ﻿///<reference path="../rpos.d.ts"/>
+ 
+ import { Utils } from './utils';
+-import { writeFileSync, readFileSync } from 'fs';
+ var stringifyBool = (v: boolean) => { return v ? "1" : "0"; }
+ var utils = Utils.utils;
+ 
+@@ -206,37 +205,29 @@ export module v4l2ctl {
+         }
+     }
+ 
+-    export function ApplyControls() {
+-        var usercontrols = Controls.UserControls;
+-        var codeccontrols = Controls.CodecControls;
+-        var cameracontrols = Controls.CameraControls;
+-        var jpgcontrols = Controls.JPEGCompressionControls;
+-
+-        var getChanges = function(controls: {}) {
+-            var changes = [];
+-            for (var c in controls) {
+-                var control = <UserControl<any>>controls[c];
+-                if (!control.isDirty)
+-                    continue;
+-
+-                changes.push([c, "=", control].join(''));
+-                control.reset();
+-            }
+-            return changes;
+-        };
+-
+-        var changedcontrols = getChanges(usercontrols)
+-            .concat(getChanges(codeccontrols))
+-            .concat(getChanges(cameracontrols))
+-            .concat(getChanges(jpgcontrols));
+-
+-        if (changedcontrols.length > 0) {
+-            execV4l2(`--set-ctrl ${changedcontrols.join(',') }`);
+-            WriteToFile();
++    export function *GetAllControls() {
++        for (const controlGroup of Object.values(Controls)) {
++            yield *Object.entries(controlGroup);
+         }
+     }
+ 
+-    export function WriteToFile() {
++    export function GetDirtyControls() {
++        return Array.from(GetAllControls()).filter(([name, control]) => control.isDirty);
++    }
++
++    export function ApplyControls() {
++        const dirtyControls = GetDirtyControls();
++        if (dirtyControls.length == 0) {
++            return false;
++        }
++
++        const settingStrings = dirtyControls.map(([name, control]) => `${name}=${control}`);
++        execV4l2(`--set-ctrl ${settingStrings.join(',')}`);
++        dirtyControls.forEach(([name, control]) => control.reset())
++        return true;
++    }
++
++    export function ToJson() {
+         var data = {};
+         for (var ct in Controls) {
+             data[ct] = {};
+@@ -245,22 +236,15 @@ export module v4l2ctl {
+                 data[ct][k] = uc.value;
+             }
+         }
+-        var json = JSON.stringify(data);
+-        json = json.replace(/{"/g,"{\n\"").replace(/:{/g, ":\n{").replace(/,"/g, ",\n\"").replace(/}/g,"}\n");
+-        writeFileSync("v4l2ctl.json", json);
++        return data;
+     }
+ 
+-    export function ReadFromFile() {
+-        try {
+-            var data = JSON.parse(readFileSync("v4l2ctl.json").toString());
+-            for (var ct in data) {
+-                for (var k in data[ct]) {
+-                    var uc = <UserControl<any>>Controls[ct][k];
+-                    uc.value = data[ct][k];
+-                }
++    export function FromJson(data) {
++        for (var ct in data) {
++            for (var k in data[ct]) {
++                var uc = <UserControl<any>>Controls[ct][k];
++                uc.value = data[ct][k];
+             }
+-        } catch (ex) {
+-            utils.log.error("v4l2ctl.json does not exist yet or invalid.")
+         }
+     }
+ 
+@@ -296,8 +280,6 @@ export module v4l2ctl {
+         getControls(codeccontrols);
+         getControls(cameracontrols);
+         getControls(jpgcontrols);
+-
+-        WriteToFile();
+     }
+ 
+     export function SetFrameRate(framerate: number) {
+diff --git a/package.json b/package.json
+index 9687830..78e74d5 100644
+--- a/package.json
++++ b/package.json
+@@ -28,6 +28,7 @@
+     "pan-tilt-hat": "^1.2.1",
+     "rpi-version": "^1.4.3",
+     "serialport": "^9.1.0",
++    "signal-exit": "^4.0.2",
+     "soap": "https://github.com/BreeeZe/node-soap.git",
+     "tenx-usb-missile-launcher-driver": "^0.2.0",
+     "xml2js": "0.4.23"
+diff --git a/rpos.d.ts b/rpos.d.ts
+index 819fa7d..4371aa8 100644
+--- a/rpos.d.ts
++++ b/rpos.d.ts
+@@ -7,6 +7,7 @@ interface rposConfig {
+   Password: string;
+   CameraType: string;
+   CameraDevice: string;
++  CameraSettingsFilename: string;
+   RTSPAddress: string;
+   RTSPPort: number;
+   RTSPName: string;
+@@ -87,4 +88,5 @@ interface CameraSettings {
+   framerate: number;
+   bitrate: number;
+   quality: number;
++  h264Profile: string;
+ }
+diff --git a/rpos.ts b/rpos.ts
+index 7b0e30a..fd6f4d6 100644
+--- a/rpos.ts
++++ b/rpos.ts
+@@ -124,7 +124,7 @@ let ptz_driver = new PTZDriver(config);
+ let camera = new Camera(config, webserver);
+ let device_service = new DeviceService(config, httpserver, ptz_driver.process_ptz_command);
+ let ptz_service = new PTZService(config, httpserver, ptz_driver.process_ptz_command, ptz_driver);
+-let imaging_service = new ImagingService(config, httpserver, ptz_driver.process_ptz_command);
++let imaging_service = new ImagingService(config, httpserver, camera, ptz_driver.process_ptz_command);
+ let media_service = new MediaService(config, httpserver, camera, ptz_service); // note ptz_service dependency
+ let discovery_service = new DiscoveryService(config);
+ 
+diff --git a/services/imaging_service.ts b/services/imaging_service.ts
+index 8b9d866..cb576c8 100644
+--- a/services/imaging_service.ts
++++ b/services/imaging_service.ts
+@@ -1,5 +1,6 @@
+ ///<reference path="../rpos.d.ts" />
+ 
++import Camera = require('../lib/camera');
+ import fs = require("fs");
+ import util = require("util");
+ import os = require('os');
+@@ -11,17 +12,18 @@ var utils = Utils.utils;
+ 
+ class ImagingService extends SoapService {
+   imaging_service: any;
++  camera: Camera;
+   callback: any;
+ 
+-  brightness = 0;
+   autoFocusMode = '';
+   focusNearLimit = 0;
+   focusFarLimit = 0;
+   focusDefaultSpeed = 0;
+ 
+-  constructor(config: rposConfig, server: Server, callback) {
++  constructor(config: rposConfig, server: Server, camera: Camera, callback) {
+     super(config, server);
+ 
++    this.camera = camera;
+     this.imaging_service = require('./stubs/imaging_service.js').ImagingService;
+     this.callback = callback;
+ 
+@@ -33,7 +35,6 @@ class ImagingService extends SoapService {
+       onReady: () => console.log('imaging_service started')
+     };
+ 
+-    this.brightness = 50;  // range is 0..100
+     this.autoFocusMode = "MANUAL"; // MANUAL or AUTO
+     this.focusDefaultSpeed = 0.5; // range 0.1 to 1.0. See GetMoveOptions valid range
+     this.focusNearLimit = 1.0;  // range 0.1 to 3.0 in Metres
+@@ -220,7 +221,7 @@ class ImagingService extends SoapService {
+     port.GetImagingSettings = (args /*, cb, headers*/) => {
+       var GetImagingSettingsResponse = {
+         ImagingSettings : {
+-          Brightness : this.brightness,
++          Brightness : this.camera.getBrightness(),
+           Focus : { 
+             AutoFocusMode : this.autoFocusMode,
+             DefaultSpeed : this.focusDefaultSpeed,
+@@ -325,9 +326,7 @@ class ImagingService extends SoapService {
+         // Check for Brightness value
+         if (args.ImagingSettings) {
+           if (args.ImagingSettings.Brightness) {
+-            this.brightness = args.ImagingSettings.Brightness;
+-            // emit the 'brightness' message to the parent
+-            if (this.callback) this.callback('brightness', {value: this.brightness});
++            this.camera.setBrightness(args.ImagingSettings.Brightness);
+           }
+           if (args.ImagingSettings.Focus) {
+             if (args.ImagingSettings.Focus.AutoFocusMode) {
+diff --git a/services/media_service.ts b/services/media_service.ts
+index 2d270ab..5da1060 100644
+--- a/services/media_service.ts
++++ b/services/media_service.ts
+@@ -112,13 +112,9 @@ class MediaService extends SoapService {
+   extendService() {
+     var port = this.media_service.MediaService.Media;
+ 
+-    var cameraOptions = this.camera.options;
+-    var cameraSettings = this.camera.settings;
++    var cameraOptions = this.camera.getOptions();
+     var camera = this.camera;
+ 
+-    var h264Profiles = v4l2ctl.Controls.CodecControls.h264_profile.getLookupSet().map(ls=>ls.desc);
+-    h264Profiles.splice(1, 1);
+-
+     var videoConfigurationOptions = {
+       QualityRange: {
+         Min: 0,
+@@ -126,39 +122,33 @@ class MediaService extends SoapService {
+       },
+       H264: {
+         ResolutionsAvailable: cameraOptions.resolutions,
+-        GovLengthRange: {
+-          Min: v4l2ctl.Controls.CodecControls.h264_i_frame_period.getRange().min,
+-          Max: v4l2ctl.Controls.CodecControls.h264_i_frame_period.getRange().max
+-        },
++        GovLengthRange: cameraOptions.gop,
+         FrameRateRange: {
+-          Min: cameraOptions.framerates[0],
+-          Max: cameraOptions.framerates[cameraOptions.framerates.length - 1]
++          Min: cameraOptions.framerate[0],
++          Max: cameraOptions.framerate[cameraOptions.framerate.length - 1]
+         },
+         EncodingIntervalRange: { Min: 1, Max: 1 },
+-        H264ProfilesSupported: h264Profiles
++        H264ProfilesSupported: cameraOptions.h264Profiles
+       },
+       Extension: {
+         H264: {
+           ResolutionsAvailable: cameraOptions.resolutions,
+-          GovLengthRange: {
+-            Min: v4l2ctl.Controls.CodecControls.h264_i_frame_period.getRange().min,
+-            Max: v4l2ctl.Controls.CodecControls.h264_i_frame_period.getRange().max
+-          },
++          GovLengthRange: cameraOptions.gop,
+           FrameRateRange: {
+-            Min: cameraOptions.framerates[0],
+-            Max: cameraOptions.framerates[cameraOptions.framerates.length - 1]
++            Min: cameraOptions.framerate[0],
++            Max: cameraOptions.framerate[cameraOptions.framerate.length - 1]
+           },
+           EncodingIntervalRange: { Min: 1, Max: 1 },
+-          H264ProfilesSupported: h264Profiles,
++          H264ProfilesSupported: cameraOptions.h264Profiles,
+           BitrateRange: {
+-            Min: cameraOptions.bitrates[0],
+-            Max: cameraOptions.bitrates[cameraOptions.bitrates.length - 1]
++            Min: cameraOptions.bitrate[0],
++            Max: cameraOptions.bitrate[cameraOptions.bitrate.length - 1]
+           }
+         }
+       }
+     };
+ 
+-    var videoEncoderConfiguration = {
++    var _videoEncoderConfiguration = {
+       attributes: {
+         token: "encoder_config_token"
+       },
+@@ -166,18 +156,18 @@ class MediaService extends SoapService {
+       UseCount: 0,
+       Encoding: "H264",
+       Resolution: {
+-        Width: cameraSettings.resolution.Width,
+-        Height: cameraSettings.resolution.Height
++        Width: this.camera.resolution.Width,
++        Height: this.camera.resolution.Height
+       },
+-      Quality: v4l2ctl.Controls.CodecControls.video_bitrate.value ? 0 : 1,
++      Quality: undefined,
+       RateControl: {
+-        FrameRateLimit: cameraSettings.framerate,
++        FrameRateLimit: this.camera.framerate,
+         EncodingInterval: 1,
+-        BitrateLimit: v4l2ctl.Controls.CodecControls.video_bitrate.value / 1000
++        BitrateLimit: undefined,
+       },
+       H264: {
+-        GovLength: v4l2ctl.Controls.CodecControls.h264_i_frame_period.value,
+-        H264Profile: v4l2ctl.Controls.CodecControls.h264_profile.desc
++        GovLength: undefined,
++        H264Profile: undefined,
+       },
+       Multicast: {
+         Address: {
+@@ -213,16 +203,33 @@ class MediaService extends SoapService {
+       Options: []
+     };
+ 
+-    var profile = {
++    var _profile = {
+       Name: "CurrentProfile",
+       attributes: {
+         token: "profile_token"
+       },
+       VideoSourceConfiguration: videoSourceConfiguration,
+-      VideoEncoderConfiguration: videoEncoderConfiguration,
++      VideoEncoderConfiguration: undefined,
+       PTZConfiguration: this.ptz_service.ptzConfiguration
+     };
+ 
++    const getProfile = () => {
++      _profile.VideoEncoderConfiguration = getVideoEncoderConfiguration();
++      return _profile;
++    };
++
++    const getVideoEncoderConfiguration = () => {
++      const settings = camera.getSettings();
++      _videoEncoderConfiguration.RateControl.BitrateLimit = settings.bitrate;
++      _videoEncoderConfiguration.RateControl.FrameRateLimit = settings.framerate;
++      _videoEncoderConfiguration.H264.GovLength = settings.gop;
++      _videoEncoderConfiguration.Quality = settings.quality;
++      _videoEncoderConfiguration.Resolution = settings.resolution;
++      _videoEncoderConfiguration.H264.H264Profile = settings.h264Profile;
++
++      return _videoEncoderConfiguration;
++    }
++
+     port.GetServiceCapabilities = (args /*, cb, headers*/) => {
+       var GetServiceCapabilitiesResponse = {
+         Capabilities: {
+@@ -279,17 +286,17 @@ class MediaService extends SoapService {
+     };
+ 
+     port.GetProfile = (args) => {
+-      var GetProfileResponse = { Profile: profile };
++      var GetProfileResponse = { Profile: getProfile() };
+       return GetProfileResponse;
+     };
+ 
+     port.GetProfiles = (args) => {
+-      var GetProfilesResponse = { Profiles: [profile] };
++      var GetProfilesResponse = { Profiles: [getProfile()] };
+       return GetProfilesResponse;
+     };
+ 
+     port.CreateProfile = (args) => {
+-      var CreateProfileResponse = { Profile: profile };
++      var CreateProfileResponse = { Profile: getProfile() };
+       return CreateProfileResponse;
+     };
+ 
+@@ -314,22 +321,23 @@ class MediaService extends SoapService {
+     };
+ 
+     port.GetVideoEncoderConfigurations = (args) => {
+-      var GetVideoEncoderConfigurationsResponse = { Configurations: [videoEncoderConfiguration] };
++      var GetVideoEncoderConfigurationsResponse = { Configurations: [getVideoEncoderConfiguration()] };
+       return GetVideoEncoderConfigurationsResponse;
+     };
+ 
+     port.GetVideoEncoderConfiguration = (args) => {
+-      var GetVideoEncoderConfigurationResponse = { Configuration: videoEncoderConfiguration };
++      var GetVideoEncoderConfigurationResponse = { Configuration: getVideoEncoderConfiguration() };
+       return GetVideoEncoderConfigurationResponse;
+     };
+ 
+     port.SetVideoEncoderConfiguration = (args) => {
+       var settings = {
+-        bitrate: (videoEncoderConfiguration.RateControl.BitrateLimit = args.Configuration.RateControl.BitrateLimit),
+-        framerate: (videoEncoderConfiguration.RateControl.FrameRateLimit = args.Configuration.RateControl.FrameRateLimit),
+-        gop: (videoEncoderConfiguration.H264.GovLength = args.Configuration.H264.GovLength),
+-        quality: (videoEncoderConfiguration.Quality = args.Configuration.Quality instanceof Object ? 1 : args.Configuration.Quality),
+-        resolution: (videoEncoderConfiguration.Resolution = args.Configuration.Resolution),
++        bitrate: args.Configuration.RateControl.BitrateLimit,
++        framerate: args.Configuration.RateControl.FrameRateLimit,
++        gop: args.Configuration.H264.GovLength,
++        quality: args.Configuration.Quality instanceof Object ? 1 : args.Configuration.Quality,
++        resolution: args.Configuration.Resolution,
++        h264Profile: args.Configuration.H264.H264Profile,
+       };
+       camera.setSettings(settings);
+ 
+-- 
+2.25.1
+

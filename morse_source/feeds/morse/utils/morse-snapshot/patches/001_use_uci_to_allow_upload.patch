@@ -1,0 +1,11 @@
+--- a/scripts/morse-snapshot-upload.sh
++++ b/scripts/morse-snapshot-upload.sh
+@@ -70,7 +70,7 @@ upload_snapshot() {
+ }
+ 
+ # if snapshot uploading is disabled then exit
+-if [ "${UPLOAD_SNAPSHOT}" = "0" ]; then
++if [ "$(uci get system.morse_snapshot.allow_upload)" = "0" ]; then
+     exit 10
+ fi
+ 

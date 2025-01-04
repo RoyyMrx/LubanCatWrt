@@ -1,0 +1,10 @@
+{
+    "dongle_remote": {
+        "service": "_dongle-rpc._tcp.local",
+        "port": 80,
+        "txt": [
+            "path=/ubus",
+            "u=dongle"
+        ]
+    }
+}

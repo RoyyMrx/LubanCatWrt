@@ -1,0 +1,13 @@
+#!/bin/sh 
+
+[ "$(uci -q get network.lan.defaults_applied)" = "1" ] && exit 0
+
+uci -q delete network.lan
+
+uci set network.lan="interface"
+uci set network.lan.proto="dhcp"
+
+uci commit network
+
+uci set network.lan.defaults_applied="1"
+uci commit network

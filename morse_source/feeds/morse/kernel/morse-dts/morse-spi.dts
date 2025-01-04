@@ -1,0 +1,47 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+   compatible = "brcm,bcm2835", "brcm,bcm2836", "brcm,bcm2708", "brcm,bcm2709", "brcm,bcm2711";
+
+   fragment@0 {
+      target = <&spi0>;
+      frag0: __overlay__ {
+         pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+         cs-gpios = <&gpio 8 1>;
+         #address-cells = <1>;
+         #size-cells = <0>;
+         status = "disabled";
+
+         mm6108: mm6108@0 {
+            compatible = "morse,mm610x-spi";
+            reg = <0>;	/* CE0 */
+            reset-gpios = <&gpio 5 0>;
+            power-gpios = <&gpio 3 0>,
+               <&gpio 7 0>;
+            spi-irq-gpios = <&gpio 25 0>;
+            status = "disabled";
+         };
+
+         spidev0: spidev@0 {
+            reg = <0>;	/* CE0 */
+            status = "disabled";
+         };
+
+         spidev1: spidev@1 {
+            reg = <1>;	/* CE1 */
+            status = "disabled";
+         };
+      };
+   };
+
+   fragment@1 {
+      target = <&gpio>;
+      __overlay__ {
+         spi0_cs_pins: spi0_cs_pins {
+            brcm,pins = <8>;
+            brcm,function = <1>; /* BCM2835_FSEL_GPIO_OUT */
+         };
+      };
+   };
+};

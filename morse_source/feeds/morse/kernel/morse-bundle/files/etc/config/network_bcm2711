@@ -1,0 +1,21 @@
+config interface 'loopback'
+        option device 'lo'
+        option proto 'static'
+        option ipaddr '127.0.0.1'
+        option netmask '255.0.0.0'
+
+config globals 'globals'
+        option ula_prefix 'fdd1:69d6:16de::/48'
+
+config device
+        option name 'br0'
+        option type 'bridge'
+        list ports 'eth0'
+
+config device
+        option name 'br-prpl'
+        option type 'bridge'
+
+config interface 'lteUsbModem'
+        option proto 'dhcp'
+        option device 'eth1' 

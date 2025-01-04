@@ -1,0 +1,69 @@
+--- a/spi.c	2023-05-05 17:06:28.000000000 +1000
++++ b/spi.c	2023-05-16 17:05:34.809308797 +1000
+@@ -128,7 +128,7 @@
+ /** Maximum number of bytes per SPI read/write */
+ #define SPI_MAX_TRANSFER_SIZE		(64 * 1024)
+ /* We need to set this value to get 50 MHz */
+-#define SPI_CLK_SPEED			(140000000)
++#define SPI_CLK_SPEED			(50000000)
+ #define MAX_SPI_CLK_SPEED		(50000000)
+ #define SPI_CLK_PERIOD_NANO_S(clk_mhz)	(1000000000 / clk_mhz)
+ 
+@@ -176,10 +176,12 @@
+ 	spi->bits_per_word = 8;
+ 	spi->max_speed_hz = max_speed_hz;
+ 
++#if 0
+ 	if (spi->max_speed_hz > SPI_CLK_SPEED) {
+ 		dev_err(&spi->dev, "SPI clocks above 50MHz are not supported by Morse chip\n");
+ 		return -EPERM;
+ 	}
++#endif
+ 
+ 	ret = spi_setup(spi);
+ 	if (ret < 0) {
+@@ -433,7 +435,7 @@
+ {
+ 	u8 *cp = data;
+ 
+-	while (cp < end && *cp == 0xff)
++	while (cp < end && (SPI_MMC_RESPONSE_CODE(*cp) != SPI_RESPONSE_ACCEPTED))
+ 		cp++;
+ 
+ 	if (cp == end)
+@@ -533,13 +535,10 @@
+ 	cp += 4;
+ 
+ 	if (!block) {
+-		/* Scale bytes delay to block */
+-		u32 extra_bytes = (count * mspi->inter_block_delay_bytes) / MMC_SPI_BLOCKSIZE;
+-
+ 		/* Allow 4 bytes for CRC and another 10 bytes for start block token & chip delays
+ 		 * (usually comes in 2).
+ 		 */
+-		data_size = count + 4 + 4 + extra_bytes;
++		data_size = count + 4 + 4 + mspi->inter_block_delay_bytes;
+ 		if (is_rk3288)
+ 			/* Short transactions are sometimes delayed. These extra bytes give enough
+ 			 * cycles to receive all the data. This could be optimised to a lower
+@@ -603,6 +602,7 @@
+ 	u8 *resp;
+ 	u8 *end;
+ 	u8 *ack = cp;
++	u8 *test_ack;
+ 	u32 data_size;
+ 	int i;
+ 
+@@ -660,10 +660,11 @@
+ 		/* crc */
+ 		*cp = (crc & 0xFF00) >> 8;
+ 		*(cp + 1) = (crc & 0xFF);
++		test_ack = cp+2;
+ 		cp += sizeof(crc);
+ 
+ 		/* Allow more bytes for status and chip processing (depends on CLK)*/
+-		cp += block ? mspi->inter_block_delay_bytes : 4;
++		cp += mspi->inter_block_delay_bytes;
+ 	}
+ 
+ 	/* Do the actual transfer */

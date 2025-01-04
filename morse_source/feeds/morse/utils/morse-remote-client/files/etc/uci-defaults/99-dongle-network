@@ -1,0 +1,18 @@
+#!/bin/sh 
+
+#Reconfigures the default dongle device configuration
+#This expects to be overlaying configuration from morse-bundle
+# and that the last wifi-iface created is the default interface 
+# for the morse device.
+uci -q batch << "EOF"
+    set dhcp.privlan.ignore='1'
+    set dhcp.ahwlan.ignore='1'
+    set network.lan.device='br0'
+    delete network.privlan.device
+    set wireless.@wifi-iface[-1].network='lan'
+    commit dhcp
+    commit network
+    commit wireless
+EOF
+
+reload_config

@@ -1,0 +1,11 @@
+#!/bin/sh 
+
+[ "$(uci -q get umdns.data.defaults_applied)" = "1" ] && exit 0
+
+uci -q batch << "EOF"
+    add_list umdns.@umdns[-1].network="lan"
+    add_list umdns.@umdns[-1].network="privlan"
+    set umdns.data='defaults'
+    set umdns.data.defaults_applied='1'
+    commit umdns
+EOF

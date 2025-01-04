@@ -1,0 +1,20 @@
+{
+	"luci-lib-morseconfig": {
+		"description": "Grant access to configuration library and dependencies",
+		"read": {
+			"file": {
+				"/usr/share/morse-regdb/channels.csv": [ "read" ]
+			},
+			"ubus": {
+				"file": [ "read" ],
+				"luci-rpc": ["getNetworkDevices"],
+				"iwinfo": ["scan", "assoclist", "info"]
+			}
+		},
+		"write": {
+			"ubus": {
+				"dongle": [ "request" ]
+			}
+		}
+	}
+}

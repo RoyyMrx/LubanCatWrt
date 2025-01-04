@@ -1,0 +1,14 @@
+#!/bin/sh 
+
+[ "$(uci -q get network.privlan.defaults_applied)" = "1" ] && exit 0
+
+uci set network.privlan="interface"
+uci set network.privlan.device="br0"
+uci set network.privlan.proto="static"
+uci set network.privlan.ipaddr="10.42.0.1"
+uci set network.privlan.netmask="255.255.255.0"
+
+uci commit network
+
+uci set network.privlan.defaults_applied="1"
+uci commit network

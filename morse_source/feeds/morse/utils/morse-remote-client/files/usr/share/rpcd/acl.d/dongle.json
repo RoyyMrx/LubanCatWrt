@@ -1,0 +1,29 @@
+{
+        "dongle": {
+                "description": "Dongle ubus configuration access",
+                "read": {
+                        "ubus": {
+                                "iwinfo": [ "*" ],
+                                "network.wireless": [ "*" ],
+                                "network.interface": [ "*" ],
+                                "luci-rpc": [ "getWirelessDevices", "getHostHints", "getNetworkDevices" ],
+                                "file": [ "read" ],
+                                "uci": [ "*" ]
+                        },
+                        "file": {
+                                "/usr/share/morse-regdb/channels.csv": ["read"]
+                        },
+                        "uci": ["wireless", "morse", "network", "system", "luci", "firewall", "dhcp" ]
+                },
+                "write": {
+                        "ubus": {
+                                "iwinfo": [ "*" ],
+                                "network.wireless": [ "*" ],
+                                "network.interface": [ "*" ],
+                                "uci": [ "*" ]
+                        },
+                        "uci": ["wireless", "morse", "network", "system", "luci", "firewall", "dhcp" ]
+                }
+        }
+}
+

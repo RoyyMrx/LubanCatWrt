@@ -1,0 +1,45 @@
+{
+	"luci-app-morseconfig": {
+		"description": "Grant access to Morse Single File configuration and supporting tools",
+		"read": {
+			"file": {
+				"/morse/uci-defaults/85-lan": [ "exec" ],
+				"/morse/uci-defaults/86-privlan": [ "exec" ],
+				"/morse/uci-defaults/87-ahwlan": [ "exec" ],
+				"/morse/uci-defaults/88-dhcp": [ "exec" ],
+				"/morse/uci-defaults/89-firewall": [ "exec" ],
+				"/morse/uci-defaults/99-morse-wireless-defaults": [ "exec" ],
+				"/morse/configs/morse.conf": [ "read" ],
+				"/usr/share/morse-regdb/channels.csv": [ "read" ],
+				"/usr/lib/opkg/info/prplmesh.control": [ "read" ],
+				"/sbin/wpa_cli_s1g wps_pbc multi_ap=1": [ "exec" ],
+				"/sbin/wpa_cli_s1g wps_cancel": [ "exec" ],
+				"/sbin/wpa_cli_s1g wps_get_status": [ "exec" ],
+				"/sbin/hostapd_cli_s1g wps_pbc": [ "exec" ],
+				"/sbin/hostapd_cli_s1g wps_cancel": [ "exec" ],
+				"/sbin/hostapd_cli_s1g wps_get_status": [ "exec" ],
+				"/sys/class/net": ["read"],
+				"/tmp/sys_dump.tar.gz": ["read"],
+				"/bin/uname": [ "exec" ],
+				"/sbin/morsectrl": [ "exec" ],
+				"/etc/init.d/morse": [ "exec"],
+				"/bin/tar": ["exec"],
+				"/usr/bin/find":["exec"],
+				"/morse/scripts/mm_dumps.sh":["exec"]
+			},
+			"ubus": {
+				"file": [ "read" ],
+				"luci": [ "getConntrackHelpers" ],
+				"iwinfo": ["scan", "assoclist", "info"]
+			}
+		},
+		"write": {
+			"file": {
+			},
+			"ubus": {
+				"file": [ "write", "exec" ],
+				"uci": [ "apply", "firewall", "dhcp", "network", "wireless" ]
+			}
+		}
+	}
+}
