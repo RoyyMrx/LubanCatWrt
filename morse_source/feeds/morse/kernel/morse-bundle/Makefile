@@ -7,6 +7,10 @@ PKG_MAINTAINER:=Morse Micro
 
 include $(INCLUDE_DIR)/package.mk
 
+define Package/$(PKG_NAME)/extra_provides
+ echo "libgpiod.so.2";
+endef
+
 define Package/morse-bundle
   SECTION:=net
   CATEGORY:=Network
