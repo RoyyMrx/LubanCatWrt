@@ -6,6 +6,6 @@ src-git-full telephony https://github.com/openwrt/telephony.git
 #src-git targets https://github.com/openwrt/targets.git
 #src-git oldpackages http://git.openwrt.org/packages.git
 #src-link custom /usr/src/openwrt/custom-feed
-src-cpy luci ../feeds/luci
-src-cpy morse ../feeds/morse
-src-cpy prpl ../feeds/prpl
+src-cpy luci ./morse_source/feeds/luci
+src-cpy morse ./morse_source/feeds/morse
+src-cpy prpl ./morse_source/feeds/prpl
